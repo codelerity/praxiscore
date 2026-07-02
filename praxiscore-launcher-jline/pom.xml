@@ -9,7 +9,11 @@
   <artifactId>praxiscore-launcher-jline</artifactId>
   <packaging>jar</packaging>
   <name>PraxisCORE Launcher JLine</name>
-    
+
+  <properties>
+    <jline.version>4.3.1</jline.version>
+  </properties>
+
   <dependencies>
     <dependency>
       <groupId>${project.groupId}</groupId>
@@ -29,12 +33,27 @@
     <dependency>
       <groupId>org.jline</groupId>
       <artifactId>jline-terminal</artifactId>
-      <version>4.0.7</version>
+      <version>${jline.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.jline</groupId>
+      <artifactId>jline-terminal-jni</artifactId>
+      <version>${jline.version}</version>
     </dependency>
     <dependency>
       <groupId>org.jline</groupId>
       <artifactId>jline-reader</artifactId>
-      <version>4.0.7</version>
+      <version>${jline.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.jline</groupId>
+      <artifactId>jline-builtins</artifactId>
+      <version>${jline.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.jline</groupId>
+      <artifactId>jline-prompt</artifactId>
+      <version>${jline.version}</version>
     </dependency>
   </dependencies>
     

@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright 2025 Neil C Smith.
+ * Copyright 2026 Neil C Smith.
  *
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 3 only, as
@@ -21,8 +21,20 @@
  */
 package org.praxislive.launcher.jline;
 
+import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import org.jline.prompt.ConfirmResult;
+import org.jline.prompt.InputResult;
+import org.jline.prompt.ListBuilder;
+import org.jline.prompt.ListResult;
+import org.jline.prompt.PromptBuilder;
+import org.jline.prompt.Prompter;
+import org.jline.prompt.PrompterFactory;
 import org.jline.reader.EOFError;
 import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
@@ -32,12 +44,21 @@ import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
 import org.jline.utils.AttributedString;
 import org.jline.utils.AttributedStyle;
+import org.praxislive.core.Call;
+import org.praxislive.core.Value;
+import org.praxislive.core.services.UserInputService;
 import org.praxislive.core.syntax.Tokenizer;
+import org.praxislive.core.types.PArray;
+import org.praxislive.core.types.PBoolean;
+import org.praxislive.core.types.PError;
+import org.praxislive.core.types.PMap;
+import org.praxislive.core.types.PString;
 
 class TerminalImpl {
 
     static {
         System.setProperty("org.jline.reader.support.parsedline", "true");
+        System.setProperty("org.jline.terminal.softwareSignals", "false");
     }
 
     private static final String PROMPT = "> ";
@@ -49,14 +70,17 @@ class TerminalImpl {
 
     private static final TerminalImpl INSTANCE = new TerminalImpl();
 
+    private final Queue<Call> requestQueue;
     private final AtomicReference<JLineTerminalIO> service;
 
     private Thread inputThread;
     private Terminal terminal;
     private LineReader reader;
+    private Prompter prompter;
 
     private TerminalImpl() {
         service = new AtomicReference<>();
+        requestQueue = new ConcurrentLinkedQueue<>();
     }
 
     synchronized void attach(JLineTerminalIO service) {
@@ -80,7 +104,8 @@ class TerminalImpl {
                         .option(LineReader.Option.DISABLE_EVENT_EXPANSION, true)
                         .variable(LineReader.SECONDARY_PROMPT_PATTERN, CONTINUATION_PROMPT)
                         .build();
-                inputThread = new Thread(this::inputLoop);
+                prompter = PrompterFactory.create(terminal);
+                inputThread = new Thread(this::inputLoop, "TerminalIO");
                 inputThread.start();
             } catch (Exception ex) {
                 LOG.log(System.Logger.Level.ERROR, "Unable to start terminal IO", ex);
@@ -92,44 +117,72 @@ class TerminalImpl {
         this.service.compareAndSet(service, null);
     }
 
-    synchronized void postResponse(Response response) {
+    synchronized void postRequest(Call call) {
+        requestQueue.add(call);
+        if (requestQueue.size() == 1) {
+            inputThread.interrupt();
+        }
+    }
+
+    synchronized void postResponse(Call call) {
         if (reader != null) {
-            writeResponse(response);
+            writeResponse(call);
+        }
+    }
+
+    synchronized void showError(String msg) {
+        if (reader != null) {
+            reader.printAbove(new AttributedString("ERR : " + msg,
+                    AttributedStyle.DEFAULT.foreground(AttributedStyle.RED))
+                    .toAnsi(terminal));
         }
     }
 
     private void inputLoop() {
 
+        String partial = "";
+
         while (true) {
+            Call request = requestQueue.poll();
+            if (request != null) {
+                handleUserInputRequest(request);
+                continue;
+            }
+
             try {
-                String script = reader.readLine(PROMPT);
+                String script = reader.readLine(PROMPT, null, (Character) null, partial);
                 if (script != null && !script.isBlank()) {
                     JLineTerminalIO root = service.get();
                     if (root != null) {
                         root.postScript(script);
                     } else {
-                        writeResponse(new Response("Not running", true));
+                        showError("Not running");
                     }
                 }
             } catch (UserInterruptException ex) {
-                if (ex.getPartialLine().isBlank()) {
-                    try {
-                        String confirm = reader.readLine(EXIT_PROMPT);
-                        if ("y".equals(confirm.trim().toLowerCase(Locale.ROOT))) {
-                            terminal.writer().println(EXIT_NOTICE);
-                            terminal.flush();
-                            JLineTerminalIO root = service.get();
-                            if (root != null) {
-                                root.postExit();
-                                Thread.sleep(5000);
-                                // should have exited by now - fall through
+                partial = ex.getPartialLine();
+                if (requestQueue.isEmpty()) {
+                    if (partial.isEmpty()) {
+                        try {
+                            String confirm = reader.readLine(EXIT_PROMPT);
+                            if ("y".equals(confirm.trim().toLowerCase(Locale.ROOT))) {
+                                terminal.writer().println(EXIT_NOTICE);
+                                terminal.flush();
+                                JLineTerminalIO root = service.get();
+                                if (root != null) {
+                                    root.postExit();
+                                    Thread.sleep(5000);
+                                    // should have exited by now - fall through
+                                }
+                                System.exit(0);
                             }
-                            System.exit(0);
+                        } catch (UserInterruptException ex2) {
+                            // continue
+                        } catch (Exception ex2) {
+                            LOG.log(System.Logger.Level.DEBUG, "Exception in exit question", ex);
                         }
-                    } catch (UserInterruptException ex2) {
-                        // continue
-                    } catch (Exception ex2) {
-                        LOG.log(System.Logger.Level.DEBUG, "Exception in exit question", ex);
+                    } else {
+                        partial = "";
                     }
                 }
             } catch (Exception ex) {
@@ -138,17 +191,109 @@ class TerminalImpl {
         }
     }
 
-    private synchronized void writeResponse(Response response) {
-        if (response.error()) {
-            reader.printAbove(new AttributedString("ERR : " + response.message(),
-                            AttributedStyle.DEFAULT.foreground(AttributedStyle.RED))
-                            .toAnsi(terminal)
-                    );
+    private void handleUserInputRequest(Call request) {
+        Call response;
+        try {
+            Value userInput = switch (request.to().controlID()) {
+                case UserInputService.USER_INPUT ->
+                    promptUserInput(request.args());
+                case UserInputService.USER_INPUT_CONFIRM ->
+                    promptUserInputConfirm(request.args());
+                case UserInputService.USER_INPUT_MAP ->
+                    promptUserInputMap(request.args());
+                case UserInputService.USER_INPUT_SELECT ->
+                    promptUserInputSelect(request.args());
+                default ->
+                    throw new UnsupportedOperationException();
+            };
+            response = request.reply(userInput);
+        } catch (Exception ex) {
+            response = request.error(PError.of(ex));
+        }
+        JLineTerminalIO root = service.get();
+        if (root != null) {
+            root.postInputResponse(response);
+        }
+    }
+
+    private Value promptUserInput(List<Value> args) throws Exception {
+        String msg = args.get(0).toString();
+        String content = args.size() > 1 ? args.get(1).toString() : "";
+        PromptBuilder builder = prompter.newBuilder();
+        builder.createInputPrompt()
+                .name("input")
+                .message(msg)
+                .defaultValue(content.isEmpty() ? null : content)
+                .addPrompt();
+        InputResult result = (InputResult) prompter
+                .prompt(List.of(), builder.build())
+                .get("input");
+        return PString.of(result.getInput());
+    }
+
+    private PBoolean promptUserInputConfirm(List<Value> args) throws Exception {
+        String msg = args.get(0).toString();
+        PromptBuilder builder = prompter.newBuilder();
+        builder.createConfirmPrompt()
+                .name("input")
+                .message(msg)
+                .addPrompt();
+        ConfirmResult result = (ConfirmResult) prompter
+                .prompt(List.of(), builder.build())
+                .get("input");
+        return PBoolean.of(result.isConfirmed());
+    }
+
+    private PMap promptUserInputMap(List<Value> args) throws Exception {
+        String msg = args.get(0).toString();
+        PMap input = PMap.from(args.get(1)).orElseThrow(IllegalArgumentException::new);
+        PromptBuilder builder = prompter.newBuilder();
+        input.asMap().forEach((key, value) -> {
+            builder.createInputPrompt()
+                    .name(key)
+                    .message(key)
+                    .defaultValue(value.toString())
+                    .addPrompt();
+        });
+        var results = prompter.prompt(List.of(new AttributedString(msg)), builder.build());
+        PMap.Entry[] entries = input.keys().stream()
+                .map(key -> {
+                    String value = Optional.ofNullable(results.get(key))
+                            .map(r -> ((InputResult) r).getInput())
+                            .orElseGet(() -> input.getString(key, ""));
+                    return PMap.entry(key, value);
+                })
+                .toArray(PMap.Entry[]::new);
+        return PMap.ofEntries(entries);
+    }
+
+    private Value promptUserInputSelect(List<Value> args) throws Exception {
+        String msg = args.get(0).toString();
+        PArray values = PArray.from(args.get(1)).orElseThrow(IllegalArgumentException::new);
+        PromptBuilder builder = prompter.newBuilder();
+        ListBuilder list = builder.createListPrompt().name("input").message(msg);
+        values.forEach(v -> list.add(v.toString(), v.toString()));
+        list.addPrompt();
+        ListResult result = (ListResult) prompter
+                .prompt(List.of(), builder.build())
+                .get("input");
+        return PString.of(result.getSelectedId());
+    }
+
+    private synchronized void writeResponse(Call call) {
+        String output = call.args().stream()
+                .map(Value::toString)
+                .collect(Collectors.joining(" "));
+        if (call.isError()) {
+            reader.printAbove(new AttributedString("ERR : " + output,
+                    AttributedStyle.DEFAULT.foreground(AttributedStyle.RED))
+                    .toAnsi(terminal)
+            );
         } else {
-            reader.printAbove(new AttributedString("--- : " + response.message(),
-                            AttributedStyle.DEFAULT.foreground(AttributedStyle.GREEN))
-                            .toAnsi(terminal)
-                    );
+            reader.printAbove(new AttributedString("--- : " + output,
+                    AttributedStyle.DEFAULT.foreground(AttributedStyle.GREEN))
+                    .toAnsi(terminal)
+            );
         }
     }
 

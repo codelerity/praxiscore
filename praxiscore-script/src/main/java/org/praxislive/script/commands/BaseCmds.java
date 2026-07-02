@@ -33,6 +33,8 @@ import org.praxislive.script.Namespace;
 import org.praxislive.script.Variable;
 
 import static java.lang.System.Logger.Level;
+import org.praxislive.core.services.UserInputService;
+import org.praxislive.script.StackFrame;
 
 /**
  *
@@ -41,21 +43,23 @@ class BaseCmds {
 
     private static final System.Logger LOG = System.getLogger(BaseCmds.class.getName());
 
-    private static final Constant CONSTANT = new Constant();
-    private static final Set SET = new Set();
-    private static final Var VAR = new Var();
-    private static final Echo ECHO = new Echo();
-    private static final Print PRINT = new Print();
+    private static final Map<String, Command> COMMANDS = Map.of(
+            "constant", new Constant(),
+            "set", new Set(),
+            "var", new Var(),
+            "echo", new Echo(),
+            "print", new Print(),
+            "user-input", new UserInput(),
+            "user-input-confirm", new UserInputConfirm(),
+            "user-input-map", new UserInputMap(),
+            "user-input-select", new UserInputSelect()
+    );
 
     private BaseCmds() {
     }
 
     static void install(Map<String, Command> commands) {
-        commands.put("constant", CONSTANT);
-        commands.put("set", SET);
-        commands.put("var", VAR);
-        commands.put("echo", ECHO);
-        commands.put("print", PRINT);
+        commands.putAll(COMMANDS);
     }
 
     private static class Set implements InlineCommand {
@@ -135,6 +139,42 @@ class BaseCmds {
                 throw new Exception();
             }
             return List.of(PString.of(args.get(0).print()));
+        }
+
+    }
+
+    private static class UserInput implements Command {
+
+        @Override
+        public StackFrame createStackFrame(Namespace namespace, List<Value> args) throws Exception {
+            return StackFrame.serviceCall(UserInputService.class, UserInputService.USER_INPUT, args);
+        }
+
+    }
+
+    private static class UserInputConfirm implements Command {
+
+        @Override
+        public StackFrame createStackFrame(Namespace namespace, List<Value> args) throws Exception {
+            return StackFrame.serviceCall(UserInputService.class, UserInputService.USER_INPUT_CONFIRM, args);
+        }
+
+    }
+
+    private static class UserInputMap implements Command {
+
+        @Override
+        public StackFrame createStackFrame(Namespace namespace, List<Value> args) throws Exception {
+            return StackFrame.serviceCall(UserInputService.class, UserInputService.USER_INPUT_MAP, args);
+        }
+
+    }
+
+    private static class UserInputSelect implements Command {
+
+        @Override
+        public StackFrame createStackFrame(Namespace namespace, List<Value> args) throws Exception {
+            return StackFrame.serviceCall(UserInputService.class, UserInputService.USER_INPUT_SELECT, args);
         }
 
     }
