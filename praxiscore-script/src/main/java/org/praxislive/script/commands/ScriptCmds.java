@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright 2025 Neil C Smith.
+ * Copyright 2026 Neil C Smith.
  *
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 3 only, as
@@ -43,15 +43,18 @@ class ScriptCmds {
 
     public final static Command EVAL = new Eval();
     public final static Command INCLUDE = new Include();
-    private final static Command TRY = new Try();
+
+    private static final Map<String, Command> COMMANDS = Map.of(
+            "eval", EVAL,
+            "include", INCLUDE,
+            "try", new Try()
+    );
 
     private ScriptCmds() {
     }
 
     static void install(Map<String, Command> commands) {
-        commands.put("eval", EVAL);
-        commands.put("include", INCLUDE);
-        commands.put("try", TRY);
+        commands.putAll(COMMANDS);
     }
 
     private static class Eval implements Command {

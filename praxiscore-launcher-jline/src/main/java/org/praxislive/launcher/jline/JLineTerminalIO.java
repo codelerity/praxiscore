@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright 2025 Neil C Smith.
+ * Copyright 2026 Neil C Smith.
  *
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 3 only, as
@@ -21,25 +21,38 @@
  */
 package org.praxislive.launcher.jline;
 
-import java.util.stream.Collectors;
+import java.util.List;
+import java.util.Set;
 import org.praxislive.base.AbstractRoot;
 import org.praxislive.core.Call;
 import org.praxislive.core.ControlAddress;
 import org.praxislive.core.PacketRouter;
-import org.praxislive.core.Value;
+import org.praxislive.core.RootHub;
 import org.praxislive.core.services.ScriptService;
+import org.praxislive.core.services.Service;
 import org.praxislive.core.services.Services;
-import org.praxislive.core.types.PError;
 import org.praxislive.core.types.PString;
 import org.praxislive.core.services.SystemManagerService;
+import org.praxislive.core.services.UserInputService;
 
 /**
  *
  */
-class JLineTerminalIO extends AbstractRoot {
+class JLineTerminalIO extends AbstractRoot implements RootHub.ServiceProvider {
+
+    private static final Set<String> USER_INPUT_CONTROLS
+            = Set.of(UserInputService.USER_INPUT,
+                    UserInputService.USER_INPUT_CONFIRM,
+                    UserInputService.USER_INPUT_MAP,
+                    UserInputService.USER_INPUT_SELECT);
 
     private ControlAddress scriptService;
     private ControlAddress fromAddress;
+
+    @Override
+    public List<Class<? extends Service>> services() {
+        return List.of(UserInputService.class);
+    }
 
     @Override
     protected void activating() {
@@ -64,34 +77,26 @@ class JLineTerminalIO extends AbstractRoot {
     @Override
     protected void processCall(Call call, PacketRouter router) {
         if (call.isRequest()) {
-            router.route(call.error(PError.of("Unsupported Operation")));
-            return;
-        }
-        String output = call.args().stream()
-                .map(Value::toString)
-                .collect(Collectors.joining(" "));
-
-        TerminalImpl.getInstance().postResponse(new Response(output, call.isError()));
-    }
-
-    void postScript(String script) {
-        invokeLater(() -> handleScript(script));
-    }
-
-    private void handleScript(String script) {
-        try {
-            getRouter().route(
-                    Call.create(scriptService,
-                            fromAddress,
-                            getExecutionContext().getTime(),
-                            PString.of(script)));
-        } catch (Exception e) {
-            TerminalImpl.getInstance().postResponse(new Response("" + e, true));
+            if (USER_INPUT_CONTROLS.contains(call.to().controlID())) {
+                TerminalImpl.getInstance().postRequest(call);
+            } else {
+                throw new UnsupportedOperationException();
+            }
+        } else if ("io".equals(call.to().controlID())) {
+            TerminalImpl.getInstance().postResponse(call);
         }
     }
 
     void postExit() {
         invokeLater(this::handleExit);
+    }
+
+    void postInputResponse(Call call) {
+        invokeLater(() -> handleInputResponse(call));
+    }
+
+    void postScript(String script) {
+        invokeLater(() -> handleScript(script));
     }
 
     private void handleExit() {
@@ -102,6 +107,26 @@ class JLineTerminalIO extends AbstractRoot {
                     getRouter().route(Call.createQuiet(exit, fromAddress,
                             getExecutionContext().getTime()));
                 }, () -> System.exit(0));
+    }
+
+    private void handleInputResponse(Call call) {
+        try {
+            getRouter().route(call);
+        } catch (Exception e) {
+            TerminalImpl.getInstance().showError(e.toString());
+        }
+    }
+
+    private void handleScript(String script) {
+        try {
+            getRouter().route(
+                    Call.create(scriptService,
+                            fromAddress,
+                            getExecutionContext().getTime(),
+                            PString.of(script)));
+        } catch (Exception e) {
+            TerminalImpl.getInstance().showError(e.toString());
+        }
     }
 
 }

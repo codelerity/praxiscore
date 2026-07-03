@@ -37,6 +37,7 @@ import org.praxislive.core.services.RootManagerService;
 import org.praxislive.core.services.ScriptService;
 import org.praxislive.core.services.SystemManagerService;
 import org.praxislive.core.services.TaskService;
+import org.praxislive.core.services.UserInputService;
 
 /**
  * A Protocol defines known controls and behaviours that a component can
@@ -87,6 +88,7 @@ public interface Protocol {
      *
      * @param <T> class of protocol
      */
+    // @TODO remove T or make provider generic?
     public static class Type<T extends Protocol> {
 
         private final Class<T> cls;
@@ -201,6 +203,7 @@ public interface Protocol {
             register(new Type<>(SystemManagerService.class));
             register(new Type<>(TaskService.class));
             register(new Type<>(LogService.class));
+            register(new Type<>(UserInputService.class));
 
             Lookup.SYSTEM.findAll(TypeProvider.class)
                     .flatMap(TypeProvider::types)

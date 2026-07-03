@@ -47,6 +47,7 @@ import org.praxislive.core.Root;
 import org.praxislive.core.services.LogLevel;
 import org.praxislive.core.services.LogService;
 import org.praxislive.core.services.SystemManagerService;
+import org.praxislive.core.services.UserInputService;
 import org.praxislive.hub.net.NetworkCoreFactory;
 import picocli.CommandLine;
 import picocli.CommandLine.UnmatchedArgumentException;
@@ -344,7 +345,8 @@ public class Launcher {
                         .exposeServices(List.of(
                                 CodeCompilerService.class,
                                 LogService.class,
-                                SystemManagerService.class
+                                SystemManagerService.class,
+                                UserInputService.class
                         ));
 
                 if (requireServer) {
