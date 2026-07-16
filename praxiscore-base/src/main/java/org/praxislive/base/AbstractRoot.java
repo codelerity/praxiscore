@@ -981,8 +981,8 @@ public abstract class AbstractRoot implements Root {
             if (forceUpdateAfterNS > 0 && delta > forceUpdateAfterNS) {
                 return true;
             }
-            if (Math.abs(delta) > 10_000_000_000L) {
-                LOG.log(System.Logger.Level.ERROR, "Delegate not updating time");
+            if (Math.abs(delta) > 10_000_000_000L && !lock.isLocked()) {
+                LOG.log(System.Logger.Level.WARNING, "Delegate not updating time");
             }
             return false;
         }
