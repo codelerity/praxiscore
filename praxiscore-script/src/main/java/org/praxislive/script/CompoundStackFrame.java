@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright 2025 Neil C Smith.
+ * Copyright 2026 Neil C Smith.
  *
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 3 only, as
@@ -202,6 +202,50 @@ final class CompoundStackFrame implements StackFrame {
             return catchFrame == null ? primaryFrame.result() : catchFrame.result();
         }
 
+    }
+
+    static class FunctionStackFrame implements StackFrame {
+
+        private final Function<Env, List<Value>> function;
+
+        private State state = State.Incomplete;
+        private List<Value> result;
+
+        FunctionStackFrame(Function<Env, List<Value>> function) {
+            this.function = function;
+        }
+
+        @Override
+        public State getState() {
+            return state;
+        }
+
+        @Override
+        public void postResponse(Call call) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void postResponse(State state, List<Value> args) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public StackFrame process(Env env) {
+            try {
+                result = function.apply(env);
+                state = State.OK;
+            } catch (Exception ex) {
+                result = List.of(PError.of(ex));
+                state = State.Error;
+            }
+            return null;
+        }
+
+        @Override
+        public List<Value> result() {
+            return result;
+        }
     }
 
     static class SupplierStackFrame implements StackFrame {

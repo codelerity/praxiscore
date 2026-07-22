@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright 2024 Neil C Smith.
+ * Copyright 2026 Neil C Smith.
  *
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 3 only, as
@@ -21,6 +21,7 @@
  */
 package org.praxislive.script;
 
+import java.util.stream.Stream;
 import org.praxislive.core.Value;
 
 /**
@@ -144,6 +145,30 @@ public interface Namespace {
         Variable c = new ConstantImpl(value);
         addVariable(id, c);
         return c;
+    }
+
+    /**
+     * Get a stream of all variable IDs visible from this namespace.
+     * <p>
+     * This is an optional feature. The default namespace returns an empty
+     * stream.
+     *
+     * @return variable IDs
+     */
+    public default Stream<String> variables() {
+        return Stream.empty();
+    }
+
+    /**
+     * Get a stream of all command IDs visible from this namespace.
+     * <p>
+     * This is an optional feature. The default namespace returns an empty
+     * stream.
+     *
+     * @return command IDs
+     */
+    public default Stream<String> commands() {
+        return Stream.empty();
     }
 
 }

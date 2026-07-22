@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright 2024 Neil C Smith.
+ * Copyright 2026 Neil C Smith.
  *
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 3 only, as
@@ -21,47 +21,38 @@
  */
 package org.praxislive.script;
 
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Queue;
 import org.praxislive.core.Call;
 import org.praxislive.core.ComponentAddress;
-import org.praxislive.core.Lookup;
 import org.praxislive.core.types.PError;
-import org.praxislive.script.commands.CoreCommandsInstaller;
 
 import static java.lang.System.Logger.Level;
+import org.praxislive.core.ControlAddress;
+import org.praxislive.core.Lookup;
+import org.praxislive.core.PacketRouter;
 
 /**
  *
  */
 class ScriptExecutor {
 
-    private static final System.Logger log = System.getLogger(ScriptExecutor.class.getName());
+    private static final System.Logger LOG = System.getLogger(ScriptExecutor.class.getName());
 
     private final List<StackFrame> stack;
     private final Queue<Call> queue;
     private final Env env;
-    private final Map<String, Command> commandMap;
-    private final Namespace rootNS;
+    private final Namespace namespace;
 
-    ScriptExecutor(Env context, final ComponentAddress ctxt) {
-        this.env = context;
+    ScriptExecutor(Env env,
+            Namespace rootNS,
+            ComponentAddress context) {
+        this.env = new EnvWrapper(env);
         stack = new LinkedList<>();
         queue = new LinkedList<>();
-        commandMap = buildCommandMap();
-        rootNS = new NS();
-        rootNS.addVariable(Env.CONTEXT, new ConstantImpl(ctxt));
-    }
-
-    private Map<String, Command> buildCommandMap() {
-        Map<String, Command> map = new HashMap<>();
-        CommandInstaller installer = new CoreCommandsInstaller();
-        installer.install(map);
-        Lookup.SYSTEM.findAll(CommandInstaller.class).forEach(cmds -> cmds.install(map));
-        return map;
+        namespace = rootNS.createChild();
+        namespace.createConstant(Env.CONTEXT, context);
     }
 
     public void queueEvalCall(Call call) {
@@ -82,7 +73,7 @@ class ScriptExecutor {
     }
 
     public void processScriptCall(Call call) {
-        log.log(Level.TRACE, () -> "processScriptCall - received :\n" + call);
+        LOG.log(Level.TRACE, () -> "processScriptCall - received :\n" + call);
         if (!stack.isEmpty()) {
             stack.get(0).postResponse(call);
             processStack();
@@ -95,14 +86,14 @@ class ScriptExecutor {
     private void processStack() {
         while (!stack.isEmpty()) {
             StackFrame current = stack.get(0);
-            log.log(Level.TRACE, () -> "Processing stack : " + current.getClass()
+            LOG.log(Level.TRACE, () -> "Processing stack : " + current.getClass()
                     + "\n  Stack Size : " + stack.size());
 
             // if incomplete do round of processing
             if (current.getState() == StackFrame.State.Incomplete) {
                 StackFrame child = current.process(env);
                 if (child != null) {
-                    log.log(Level.TRACE, () -> "Pushing to stack" + child.getClass());
+                    LOG.log(Level.TRACE, () -> "Pushing to stack" + child.getClass());
                     stack.add(0, child);
                     continue;
                 }
@@ -114,19 +105,19 @@ class ScriptExecutor {
                 return;
             } else {
                 var args = current.result();
-                log.log(Level.TRACE, () -> "Stack frame complete : " + current.getClass()
+                LOG.log(Level.TRACE, () -> "Stack frame complete : " + current.getClass()
                         + "\n  Result : " + args + "\n  Stack Size : " + stack.size());
                 stack.remove(0);
                 if (!stack.isEmpty()) {
-                    log.log(Level.TRACE, "Posting result up stack");
+                    LOG.log(Level.TRACE, "Posting result up stack");
                     stack.get(0).postResponse(state, args);
                 } else {
                     Call call = queue.poll();
                     if (state == StackFrame.State.OK) {
-                        log.log(Level.TRACE, "Sending OK return call");
+                        LOG.log(Level.TRACE, "Sending OK return call");
                         call = call.reply(args);
                     } else {
-                        log.log(Level.TRACE, "Sending Error return call");
+                        LOG.log(Level.TRACE, "Sending Error return call");
                         call = call.error(args);
                     }
                     env.getPacketRouter().route(call);
@@ -141,7 +132,7 @@ class ScriptExecutor {
             var args = call.args();
             try {
                 var script = args.get(0).toString();
-                var stackFrame = ScriptStackFrame.forScript(rootNS, script)
+                var stackFrame = ScriptStackFrame.forScript(namespace, script)
                         .inline()
                         .build();
                 stack.add(0, stackFrame);
@@ -155,51 +146,34 @@ class ScriptExecutor {
         }
     }
 
-    private class NS implements Namespace {
+    private class EnvWrapper implements Env {
 
-        private NS parent;
-        private Map<String, Variable> variables;
+        private final Env delegate;
 
-        private NS() {
-            this(null);
-        }
-
-        private NS(NS parent) {
-            this.parent = parent;
-            variables = new HashMap<>();
+        private EnvWrapper(Env delegate) {
+            this.delegate = delegate;
         }
 
         @Override
-        public Variable getVariable(String id) {
-            Variable var = variables.get(id);
-            if (var == null && parent != null) {
-                return parent.getVariable(id);
-            } else {
-                return var;
-            }
+        public Lookup getLookup() {
+            return delegate.getLookup();
         }
 
         @Override
-        public void addVariable(String id, Variable var) {
-            if (variables.containsKey(id)) {
-                throw new IllegalArgumentException();
-            }
-            variables.put(id, var);
+        public long getTime() {
+            return delegate.getTime();
         }
 
         @Override
-        public Command getCommand(String id) {
-            return commandMap.get(id);
+        public PacketRouter getPacketRouter() {
+            return delegate.getPacketRouter();
         }
 
         @Override
-        public void addCommand(String id, Command cmd) {
-            throw new UnsupportedOperationException();
+        public ControlAddress getAddress() {
+            return delegate.getAddress();
         }
 
-        @Override
-        public Namespace createChild() {
-            return new NS(this);
-        }
     }
+
 }

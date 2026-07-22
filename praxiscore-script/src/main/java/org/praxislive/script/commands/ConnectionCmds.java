@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright 2024 Neil C Smith.
+ * Copyright 2026 Neil C Smith.
  *
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 3 only, as
@@ -32,7 +32,6 @@ import org.praxislive.core.Value;
 import org.praxislive.core.protocols.ContainerProtocol;
 import org.praxislive.core.types.PString;
 import org.praxislive.script.Command;
-import org.praxislive.script.CommandInstaller;
 import org.praxislive.script.Env;
 import org.praxislive.script.Namespace;
 import org.praxislive.script.StackFrame;
@@ -42,17 +41,21 @@ import org.praxislive.script.StackFrame;
  */
 class ConnectionCmds {
 
-    private final static Connect CONNECT = new Connect();
-    private final static Disconnect DISCONNECT = new Disconnect();
+    private static final Connect CONNECT = new Connect();
+    private static final Disconnect DISCONNECT = new Disconnect();
+
+    private static final Map<String, Command> COMMANDS = Map.of(
+            "connect", CONNECT,
+            "~", CONNECT,
+            "disconnect", DISCONNECT,
+            "!~", DISCONNECT
+    );
 
     private ConnectionCmds() {
     }
 
     static void install(Map<String, Command> commands) {
-        commands.put("connect", CONNECT);
-        commands.put("~", CONNECT);
-        commands.put("disconnect", DISCONNECT);
-        commands.put("!~", DISCONNECT);
+        commands.putAll(COMMANDS);
     }
 
     private static class Connect implements Command {
@@ -61,15 +64,26 @@ class ConnectionCmds {
         public StackFrame createStackFrame(Namespace namespace, List<Value> args) throws Exception {
             return new ConnectionStackFrame(namespace, args, true);
         }
+
+        @Override
+        public String description() {
+            return CoreCommands.message("connect.description");
+        }
+
     }
-    
+
     private static class Disconnect implements Command {
-        
+
         @Override
         public StackFrame createStackFrame(Namespace namespace, List<Value> args) throws Exception {
             return new ConnectionStackFrame(namespace, args, false);
         }
-        
+
+        @Override
+        public String description() {
+            return CoreCommands.message("disconnect.description");
+        }
+
     }
 
     private static class ConnectionStackFrame extends AbstractSingleCallFrame {

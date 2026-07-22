@@ -24,6 +24,7 @@ package org.praxislive.script;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import org.praxislive.core.Call;
 import org.praxislive.core.ControlAddress;
@@ -248,6 +249,28 @@ public interface StackFrame {
      */
     public static StackFrame empty() {
         return new CompoundStackFrame.SupplierStackFrame(() -> List.of());
+    }
+
+    /**
+     * Create a StackFrame that calls the provided function for a result.
+     *
+     * @param function calculate result
+     * @return stackframe
+     */
+    public static StackFrame inline(Function<Env, List<Value>> function) {
+        return new CompoundStackFrame.FunctionStackFrame(
+                Objects.requireNonNull(function));
+    }
+
+    /**
+     * Create a StackFrame that calls the provided supplier for a result.
+     *
+     * @param supplier calculate result
+     * @return stackframe
+     */
+    public static StackFrame supply(Supplier<List<Value>> supplier) {
+        return new CompoundStackFrame.SupplierStackFrame(
+                Objects.requireNonNull(supplier));
     }
 
     /**

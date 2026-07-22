@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright 2024 Neil C Smith.
+ * Copyright 2026 Neil C Smith.
  *
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 3 only, as
@@ -22,29 +22,31 @@
 package org.praxislive.script;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.praxislive.base.AbstractRoot;
 import org.praxislive.core.Call;
 import org.praxislive.core.Control;
 import org.praxislive.core.ControlAddress;
 import org.praxislive.core.Lookup;
-import org.praxislive.core.Packet;
 import org.praxislive.core.PacketRouter;
 import org.praxislive.core.RootHub;
 import org.praxislive.core.services.ScriptService;
 import org.praxislive.core.services.Service;
 import org.praxislive.core.types.PError;
+import org.praxislive.core.types.PReference;
+import org.praxislive.script.commands.CoreCommands;
 
 /**
  * A default implementation of {@link ScriptService}.
  */
 public final class DefaultScriptService extends AbstractRoot implements RootHub.ServiceProvider {
 
-    private static final System.Logger LOG = System.getLogger(DefaultScriptService.class.getName());
-
     private final Map<String, Control> controls;
     private final Map<ControlAddress, ScriptContext> contexts;
+    private final DefaultNamespace rootNS;
     private int exID;
 
     public DefaultScriptService() {
@@ -52,6 +54,8 @@ public final class DefaultScriptService extends AbstractRoot implements RootHub.
         controls.put(ScriptService.EVAL, new EvalControl());
         controls.put(ScriptService.CLEAR, new ClearControl());
         contexts = new HashMap<>();
+        rootNS = new DefaultNamespace();
+        configureNamespace(rootNS);
     }
 
     @Override
@@ -76,7 +80,7 @@ public final class DefaultScriptService extends AbstractRoot implements RootHub.
         exID++;
         String id = "_exec_" + exID;
         EnvImpl env = new EnvImpl(ControlAddress.of(getAddress(), id));
-        ScriptExecutor ex = new ScriptExecutor(env, from.component());
+        ScriptExecutor ex = new ScriptExecutor(env, rootNS, from.component());
         controls.put(id, new ScriptControl(ex));
         contexts.put(from, new ScriptContext(id, ex));
         return ex;
@@ -89,6 +93,15 @@ public final class DefaultScriptService extends AbstractRoot implements RootHub.
         }
         ctxt.executor.flushEvalQueue();
         controls.remove(ctxt.id);
+    }
+
+    private void configureNamespace(DefaultNamespace ns) {
+        Map<String, Command> map = new HashMap<>();
+        CommandInstaller installer = new CoreCommands();
+        installer.install(map);
+        Lookup.SYSTEM.findAll(CommandInstaller.class).forEach(cmds -> cmds.install(map));
+        map.forEach(ns::addCommand);
+        ns.createConstant("_GLOBAL_NAMESPACE", PReference.of(ns));
     }
 
     private class EvalControl implements Control {
@@ -144,26 +157,14 @@ public final class DefaultScriptService extends AbstractRoot implements RootHub.
 
     }
 
-    private class ScriptContext {
-
-        private String id;
-        private ScriptExecutor executor;
-
-        private ScriptContext(String id, ScriptExecutor executor) {
-            this.id = id;
-            this.executor = executor;
-        }
-
-    }
+    private record ScriptContext(String id, ScriptExecutor executor) {}
 
     private class EnvImpl implements Env {
 
         private final ControlAddress address;
-        private final Router router;
 
         private EnvImpl(ControlAddress address) {
             this.address = address;
-            router = new Router();
         }
 
         @Override
@@ -178,7 +179,7 @@ public final class DefaultScriptService extends AbstractRoot implements RootHub.
 
         @Override
         public PacketRouter getPacketRouter() {
-            return router;
+            return DefaultScriptService.this.getRouter();
         }
 
         @Override
@@ -187,14 +188,81 @@ public final class DefaultScriptService extends AbstractRoot implements RootHub.
         }
     }
 
-    private class Router implements PacketRouter {
+    private static class DefaultNamespace implements Namespace {
+
+        private final DefaultNamespace parent;
+        private final Map<String, Variable> variables;
+        private final Map<String, Command> commands;
+
+        private DefaultNamespace() {
+            this(null);
+        }
+
+        private DefaultNamespace(DefaultNamespace parent) {
+            this.parent = parent;
+            variables = new LinkedHashMap<>();
+            commands = new LinkedHashMap<>();
+        }
 
         @Override
-        public void route(Packet packet) {
-            LOG.log(System.Logger.Level.TRACE,
-                    () -> "Sending Call : ---\n" + packet.toString());
-            getRouter().route(packet);
+        public Variable getVariable(String id) {
+            Variable var = variables.get(id);
+            if (var == null && parent != null) {
+                return parent.getVariable(id);
+            } else {
+                return var;
+            }
+        }
+
+        @Override
+        public void addVariable(String id, Variable var) {
+            if (variables.containsKey(id)) {
+                throw new IllegalArgumentException();
+            }
+            variables.put(id, var);
+        }
+
+        @Override
+        public Command getCommand(String id) {
+            Command cmd = commands.get(id);
+            if (cmd == null && parent != null) {
+                return parent.getCommand(id);
+            } else {
+                return cmd;
+            }
+        }
+
+        @Override
+        public void addCommand(String id, Command cmd) {
+            if (commands.containsKey(id)) {
+                throw new IllegalArgumentException();
+            }
+            commands.put(id, cmd);
+        }
+
+        @Override
+        public Namespace createChild() {
+            return new DefaultNamespace(this);
+        }
+
+        @Override
+        public Stream<String> variables() {
+            if (parent == null) {
+                return variables.keySet().stream();
+            } else {
+                return Stream.concat(parent.variables(), variables.keySet().stream());
+            }
+        }
+
+        @Override
+        public Stream<String> commands() {
+            if (parent == null) {
+                return commands.keySet().stream();
+            } else {
+                return Stream.concat(parent.commands(), commands.keySet().stream());
+            }
         }
 
     }
+
 }

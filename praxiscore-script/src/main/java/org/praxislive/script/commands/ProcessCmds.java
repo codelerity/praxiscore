@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright 2025 Neil C Smith.
+ * Copyright 2026 Neil C Smith.
  *
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 3 only, as
@@ -33,17 +33,19 @@ import org.praxislive.script.Namespace;
 import org.praxislive.script.StackFrame;
 
 /**
- *
+ * Commands for working with external processes.
  */
 class ProcessCmds {
 
-    private static final Command EXEC = new ExecCmd();
+    private static final Map<String, Command> COMMANDS = Map.of(
+            "exec", new ExecCmd()
+    );
 
     private ProcessCmds() {
     }
 
     static void install(Map<String, Command> commands) {
-        commands.put("exec", EXEC);
+        commands.putAll(COMMANDS);
     }
 
     private static class ExecCmd implements Command {
@@ -71,6 +73,11 @@ class ProcessCmds {
                     Files.delete(tmp);
                 }
             });
+        }
+
+        @Override
+        public String description() {
+            return CoreCommands.message("exec.description");
         }
 
     }

@@ -26,15 +26,22 @@ import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Queue;
+import java.util.stream.Collectors;
 import org.praxislive.core.Value;
 import org.praxislive.core.types.PArray;
+import org.praxislive.core.types.PBoolean;
+import org.praxislive.core.types.PReference;
 import org.praxislive.core.types.PResource;
 import org.praxislive.core.types.PString;
 import org.praxislive.script.Command;
+import org.praxislive.script.Env;
+import org.praxislive.script.InlineCommand;
 import org.praxislive.script.Namespace;
 import org.praxislive.script.ScriptStackFrame;
 import org.praxislive.script.StackFrame;
+import org.praxislive.script.Variable;
 
 /**
  *
@@ -46,6 +53,9 @@ class ScriptCmds {
 
     private static final Map<String, Command> COMMANDS = Map.of(
             "eval", EVAL,
+            "function", new Function(),
+            "global", new Global(),
+            "if", new If(),
             "include", INCLUDE,
             "try", new Try()
     );
@@ -101,6 +111,77 @@ class ScriptCmds {
             }
             return bld.build();
         }
+
+        @Override
+        public String description() {
+            return CoreCommands.message("eval.description");
+        }
+
+    }
+
+    private static class Global implements Command {
+
+        @Override
+        public StackFrame createStackFrame(Namespace namespace, List<Value> args) throws Exception {
+            if (args.size() != 1) {
+                throw new IllegalArgumentException();
+            }
+            Namespace global = Optional.ofNullable(
+                    namespace.getVariable("_GLOBAL_NAMESPACE"))
+                    .map(Variable::getValue)
+                    .flatMap(PReference::from)
+                    .flatMap(ref -> ref.as(Namespace.class))
+                    .orElseThrow(() -> new IllegalStateException("No global namespace"));
+            return ScriptStackFrame.forScript(global, args.get(0).toString())
+                    .inline().build();
+        }
+
+        @Override
+        public String description() {
+            return CoreCommands.message("global.description");
+        }
+
+    }
+
+    private static class If implements Command {
+
+        @Override
+        public StackFrame createStackFrame(Namespace namespace, List<Value> args) throws Exception {
+            switch (args.size()) {
+                case 2 -> {
+                    if (checkCondition(args)) {
+                        return ScriptStackFrame.forScript(namespace, args.get(1).toString()).build();
+                    } else {
+                        return StackFrame.empty();
+                    }
+                }
+                case 4 -> {
+                    if ("else".equals(args.get(2).toString())) {
+                        if (checkCondition(args)) {
+                            return ScriptStackFrame.forScript(namespace, args.get(1).toString()).build();
+                        } else {
+                            return ScriptStackFrame.forScript(namespace, args.get(3).toString()).build();
+                        }
+                    } else {
+                        throw new IllegalArgumentException("Unknown third argument : " + args.get(2));
+                    }
+                }
+                default ->
+                    throw new IllegalArgumentException("Invalid number of arguments for if");
+            }
+        }
+
+        private boolean checkCondition(List<Value> args) {
+            return PBoolean.from(args.get(0))
+                    .orElseThrow(() -> new IllegalArgumentException("First argument is not a boolean"))
+                    .value();
+        }
+
+        @Override
+        public String description() {
+            return CoreCommands.message("if.description");
+        }
+
     }
 
     private static class Include implements Command {
@@ -116,6 +197,98 @@ class ScriptCmds {
                     .orElseThrow(IllegalArgumentException::new);
             return StackFrame.async(() -> PString.of(Files.readString(path)))
                     .andThen(v -> ScriptStackFrame.forScript(namespace, v.get(0).toString()).build());
+
+        }
+
+        @Override
+        public String description() {
+            return CoreCommands.message("include.description");
+        }
+
+    }
+
+    private static class Function implements InlineCommand {
+
+        @Override
+        public List<Value> process(Env context, Namespace namespace, List<Value> args) throws Exception {
+            if (args.size() != 3) {
+                throw new IllegalArgumentException("Incorrect number of arguments");
+            }
+            String name = args.get(0).toString();
+            List<String> params = PArray.from(args.get(1))
+                    .orElseThrow(() -> new IllegalArgumentException("First argument is not an array"))
+                    .asListOf(String.class);
+            String body = args.get(2).toString();
+            UserCommand command = new UserCommand(namespace, name, params, body);
+            Command existing = namespace.getCommand(name);
+            if (existing instanceof UserCommandWrapper wrapper) {
+                wrapper.replace(command);
+            } else {
+                namespace.addCommand(name, new UserCommandWrapper(command));
+            }
+            return List.of(args.get(0));
+        }
+
+        @Override
+        public String description() {
+            return CoreCommands.message("function.description");
+        }
+
+        private static class UserCommandWrapper implements Command {
+
+            private UserCommand command;
+
+            private UserCommandWrapper(UserCommand command) {
+                this.command = command;
+            }
+
+            @Override
+            public StackFrame createStackFrame(Namespace namespace, List<Value> args) throws Exception {
+                return command.createStackFrame(namespace, args);
+            }
+
+            @Override
+            public String description() {
+                return command.description();
+            }
+
+            private void replace(UserCommand command) {
+                this.command = command;
+            }
+
+        }
+
+        private static class UserCommand implements Command {
+
+            private final Namespace namespace;
+            private final String name;
+            private final List<String> params;
+            private final String body;
+
+            private UserCommand(Namespace namespace, String name, List<String> params, String body) {
+                this.namespace = namespace;
+                this.name = name;
+                this.params = params;
+                this.body = body;
+            }
+
+            @Override
+            public StackFrame createStackFrame(Namespace callerNS, List<Value> args) throws Exception {
+                if (args.size() < params.size()) {
+                    throw new IllegalArgumentException("Incorrect number of arguments");
+                }
+                ScriptStackFrame.Builder builder = ScriptStackFrame.forScript(namespace, body);
+                for (int i = 0; i < params.size(); i++) {
+                    builder.createConstant(params.get(i), args.get(i));
+                }
+                return builder.build();
+            }
+
+            @Override
+            public String description() {
+                return CoreCommands.message("user-function.description", name,
+                        params.stream().map(p -> "<" + p + ">").collect(Collectors.joining(" ")));
+            }
 
         }
 
@@ -141,6 +314,11 @@ class ScriptCmds {
                 default ->
                     throw new IllegalArgumentException("Invalid number of arguments for try");
             }
+        }
+
+        @Override
+        public String description() {
+            return CoreCommands.message("try.description");
         }
 
     }

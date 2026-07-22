@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright 2024 Neil C Smith.
+ * Copyright 2026 Neil C Smith.
  *
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 3 only, as
@@ -42,5 +42,19 @@ public interface Command {
      */
     public StackFrame createStackFrame(Namespace namespace, List<Value> args)
             throws Exception;
+
+    /**
+     * Optional human readable description of the command. The first line of the
+     * description is the command and any arguments, with {@code ?} for optional
+     * arguments and {@code ...} for variable arguments. Subsequent paragraphs
+     * describe the command and any return values.
+     * <p>
+     * The default implementation just returns an empty string.
+     *
+     * @return description
+     */
+    public default String description() {
+        return "";
+    }
 
 }
