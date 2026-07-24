@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright 2024 Neil C Smith.
+ * Copyright 2026 Neil C Smith.
  *
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 3 only, as
@@ -201,6 +201,84 @@ public class ArrayCmdsTest {
         assertEquals(1, resultList.size());
         int result = PNumber.from(resultList.get(0)).orElseThrow().toIntValue();
         assertEquals(4, result);
+    }
+
+    @Test
+    public void testGenerateRangeCommand() throws Exception {
+        logTest("testGenerateRangeCommand");
+        InlineCommand range = (InlineCommand) CMDS.get("range");
+        List<Value> results = range.process(env(), namespace(),
+                PArray.ofObjects(10).asList());
+        logResult("First result of range", results);
+        assertEquals(1, results.size());
+        List<PNumber> result = PArray.from(results.getFirst()).orElseThrow().asListOf(PNumber.class);
+        assertArrayEquals(new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
+                result.stream().mapToInt(PNumber::toIntValue).toArray());
+
+        results = range.process(env(), namespace(),
+                PArray.ofObjects(-5, 5).asList());
+        logResult("Second result of range", results);
+        result = PArray.from(results.getFirst()).orElseThrow().asListOf(PNumber.class);
+        assertArrayEquals(new int[]{-5, -4, -3, -2, -1, 0, 1, 2, 3, 4},
+                result.stream().mapToInt(PNumber::toIntValue).toArray());
+
+        results = range.process(env(), namespace(),
+                PArray.ofObjects(5, -5).asList());
+        logResult("Third result of range", results);
+        result = PArray.from(results.getFirst()).orElseThrow().asListOf(PNumber.class);
+        assertArrayEquals(new int[]{5, 4, 3, 2, 1, 0, -1, -2, -3, -4},
+                result.stream().mapToInt(PNumber::toIntValue).toArray());
+
+        results = range.process(env(), namespace(),
+                PArray.ofObjects(1, 10, 2).asList());
+        logResult("Fourth result of range", results);
+        result = PArray.from(results.getFirst()).orElseThrow().asListOf(PNumber.class);
+        assertArrayEquals(new int[]{1, 3, 5, 7, 9},
+                result.stream().mapToInt(PNumber::toIntValue).toArray());
+
+        results = range.process(env(), namespace(),
+                PArray.ofObjects(5.0).asList());
+        logResult("Fifth result of range", results);
+        result = PArray.from(results.getFirst()).orElseThrow().asListOf(PNumber.class);
+        assertArrayEquals(new double[]{0, 1, 2, 3, 4},
+                result.stream().mapToDouble(PNumber::value).toArray(),
+                0.001
+        );
+
+        results = range.process(env(), namespace(),
+                PArray.ofObjects(-2, -5.0).asList());
+        logResult("Sixth result of range", results);
+        result = PArray.from(results.getFirst()).orElseThrow().asListOf(PNumber.class);
+        assertArrayEquals(new double[]{-2, -3, -4},
+                result.stream().mapToDouble(PNumber::value).toArray(),
+                0.001
+        );
+
+        results = range.process(env(), namespace(),
+                PArray.ofObjects(1, 10, 3.3).asList());
+        logResult("Seveneth result of range", results);
+        result = PArray.from(results.getFirst()).orElseThrow().asListOf(PNumber.class);
+        assertArrayEquals(new double[]{1, 4.3, 7.6},
+                result.stream().mapToDouble(PNumber::value).toArray(),
+                0.001
+        );
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            range.process(env(), namespace(),
+                    PArray.ofObjects(1, 10, 0).asList());
+        });
+        assertThrows(IllegalArgumentException.class, () -> {
+            range.process(env(), namespace(),
+                    PArray.ofObjects(1, 10, -1).asList());
+        });
+        assertThrows(IllegalArgumentException.class, () -> {
+            range.process(env(), namespace(),
+                    PArray.ofObjects(1.0, 10.0, 0.00001).asList());
+        });
+        assertThrows(IllegalArgumentException.class, () -> {
+            range.process(env(), namespace(), List.of());
+        });
+
     }
 
 }

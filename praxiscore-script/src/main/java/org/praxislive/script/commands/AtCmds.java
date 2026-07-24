@@ -45,15 +45,16 @@ import org.praxislive.script.StackFrame;
  */
 class AtCmds {
 
-    private final static At AT = new At();
-    private final static NotAt NOT_AT = new NotAt();
+    private static final Map<String, Command> COMMANDS = Map.of(
+            "@", new At(),
+            "!@", new NotAt()
+    );
 
     private AtCmds() {
     }
 
     static void install(Map<String, Command> commands) {
-        commands.put("@", AT);
-        commands.put("!@", NOT_AT);
+        commands.putAll(COMMANDS);
     }
 
     private static class At implements Command {
@@ -131,6 +132,11 @@ class AtCmds {
 
         }
 
+        @Override
+        public String description() {
+            return CoreCommands.message("at.description");
+        }
+
         // @TODO v7 improve component type detection here
         private StackFrame verifyType(ComponentAddress cmp, ComponentType type) {
             return StackFrame.call(ControlAddress.of(cmp, ComponentProtocol.INFO), List.of())
@@ -169,6 +175,11 @@ class AtCmds {
                         ContainerProtocol.REMOVE_CHILD),
                         PString.of(component.componentID()));
             }
+        }
+
+        @Override
+        public String description() {
+            return CoreCommands.message("not-at.description");
         }
 
     }

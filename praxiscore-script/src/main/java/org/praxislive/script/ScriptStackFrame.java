@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright 2024 Neil C Smith.
+ * Copyright 2026 Neil C Smith.
  *
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 3 only, as
@@ -187,7 +187,7 @@ public final class ScriptStackFrame implements StackFrame {
         } else {
             msg = PError.from(response)
                     .map(err -> activeCommand + " : " + err.errorType()
-                    + " : " + err.message())
+                            + " : " + err.message())
                     .orElse(activeCommand + " : Error : " + response);
         }
         return Stream.concat(trap.stream(), Stream.of(PString.of(msg)))

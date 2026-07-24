@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright 2024 Neil C Smith.
+ * Copyright 2026 Neil C Smith.
  *
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 3 only, as
@@ -24,12 +24,10 @@ package org.praxislive.script.commands;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.praxislive.core.ControlAddress;
 import org.praxislive.core.Value;
 import org.praxislive.core.types.PArray;
-import org.praxislive.core.types.PBoolean;
 import org.praxislive.core.types.PMap;
 import org.praxislive.core.types.PNumber;
 import org.praxislive.core.types.PString;

@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright 2024 Neil C Smith.
+ * Copyright 2026 Neil C Smith.
  *
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 3 only, as
@@ -43,14 +43,18 @@ class MapCmds {
     private static final MapKeys MAP_KEYS = new MapKeys();
     private static final MapSize MAP_SIZE = new MapSize();
 
+    private static final Map<String, Command> COMMANDS = Map.of(
+            "map", new CreateMap(),
+            "map-get", new MapGet(),
+            "map-keys", new MapKeys(),
+            "map-size", new MapSize()
+    );
+
     private MapCmds() {
     }
 
     static void install(Map<String, Command> commands) {
-        commands.put("map", MAP);
-        commands.put("map-get", MAP_GET);
-        commands.put("map-keys", MAP_KEYS);
-        commands.put("map-size", MAP_SIZE);
+        commands.putAll(COMMANDS);
     }
 
     private static class CreateMap implements InlineCommand {
@@ -74,6 +78,11 @@ class MapCmds {
             return List.of(builder.build());
         }
 
+        @Override
+        public String description() {
+            return CoreCommands.message("map.description");
+        }
+
     }
 
     private static class MapGet implements InlineCommand {
@@ -93,6 +102,11 @@ class MapCmds {
                 throw new IllegalArgumentException("Unknown map key");
             }
             return List.of(result);
+        }
+
+        @Override
+        public String description() {
+            return CoreCommands.message("map-get.description");
         }
 
     }
@@ -115,6 +129,11 @@ class MapCmds {
             return List.of(result);
         }
 
+        @Override
+        public String description() {
+            return CoreCommands.message("map-keys.description");
+        }
+
     }
 
     private static class MapSize implements InlineCommand {
@@ -129,6 +148,11 @@ class MapCmds {
                     .orElseThrow(() -> new IllegalArgumentException("Argument is not a map"));
 
             return List.of(PNumber.of(map.size()));
+        }
+
+        @Override
+        public String description() {
+            return CoreCommands.message("map-size.description");
         }
 
     }

@@ -58,17 +58,21 @@ class FileCmds {
     private static final Command PWD = new PwdCmd();
     private static final Command LOAD = new LoadCmd();
 
+    private static final Map<String, Command> COMMANDS = Map.of(
+            "file", FILE,
+            "file-list", FILE_LIST,
+            "file-names", FILE_NAMES,
+            "ls", FILE_NAMES,
+            "cd", CD,
+            "pwd", PWD,
+            "load", LOAD
+    );
+
     private FileCmds() {
     }
 
     static void install(Map<String, Command> commands) {
-        commands.put("file", FILE);
-        commands.put("file-list", FILE_LIST);
-        commands.put("file-names", FILE_NAMES);
-        commands.put("ls", FILE_NAMES);
-        commands.put("cd", CD);
-        commands.put("pwd", PWD);
-        commands.put("load", LOAD);
+        commands.putAll(COMMANDS);
     }
 
     static URI getPWD(Namespace namespace) {
@@ -145,6 +149,12 @@ class FileCmds {
                 throw new Exception(ex);
             }
         }
+
+        @Override
+        public String description() {
+            return CoreCommands.message("file.description");
+        }
+
     }
 
     private static class FileListCmd implements InlineCommand {
@@ -171,6 +181,11 @@ class FileCmds {
                 throw new Exception(ex);
             }
 
+        }
+
+        @Override
+        public String description() {
+            return CoreCommands.message("file-list.description");
         }
 
     }
@@ -203,6 +218,11 @@ class FileCmds {
             }
         }
 
+        @Override
+        public String description() {
+            return CoreCommands.message("ls.description");
+        }
+
     }
 
     private static class CdCmd implements InlineCommand {
@@ -228,6 +248,11 @@ class FileCmds {
             }
         }
 
+        @Override
+        public String description() {
+            return CoreCommands.message("cd.description");
+        }
+
     }
 
     private static class PwdCmd implements InlineCommand {
@@ -235,6 +260,11 @@ class FileCmds {
         @Override
         public List<Value> process(Env context, Namespace namespace, List<Value> args) throws Exception {
             return List.of(PResource.of(getPWD(namespace)));
+        }
+
+        @Override
+        public String description() {
+            return CoreCommands.message("pwd.description");
         }
 
     }
@@ -251,6 +281,11 @@ class FileCmds {
                     .map(Path::of)
                     .orElseThrow(IllegalArgumentException::new);
             return StackFrame.async(() -> PString.of(Files.readString(path)));
+        }
+
+        @Override
+        public String description() {
+            return CoreCommands.message("load.description");
         }
 
     }

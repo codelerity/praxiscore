@@ -82,6 +82,41 @@ public class DefaultScriptServiceTest {
     }
 
     @Test
+    public void testCustomFunctionScript() throws Exception {
+        logTest("testCustomFunctionScript");
+        String script = """
+                        function max {v1 v2} {
+                          jcall java.lang.Math {max int} $v1 $v2
+                        }
+                        var RET {}
+                        if [== 4 [max 3 4]] {
+                          # set correct response prefix
+                          set RET "Reply"
+                        } else {
+                          set RET "FAIL"
+                        }
+                        # redefine max
+                        function max {} {
+                          range 2 10 2
+                        }
+                        foreach v in [max] {
+                          set RET [echo $RET " " $v]
+                        }
+                        echo $RET
+                        """;
+        var root = new DefaultScriptService();
+        try (var hub = new RootHubImpl("script", root)) {
+            hub.start();
+            hub.send("/script.eval", "/hub.result", script);
+            var result = hub.poll();
+            logCall("Result received", result);
+            assertTrue(result.isReply());
+            assertEquals(1, result.args().size());
+            assertEquals("Reply 2 4 6 8", result.args().get(0).toString());
+        }
+    }
+
+    @Test
     public void testAtScript() throws Exception {
         logTest("testAtScript");
         String script = """

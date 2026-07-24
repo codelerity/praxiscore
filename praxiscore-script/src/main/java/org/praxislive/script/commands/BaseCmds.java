@@ -33,7 +33,7 @@ import org.praxislive.script.Namespace;
 import org.praxislive.script.Variable;
 
 import static java.lang.System.Logger.Level;
-import org.praxislive.core.services.UserInputService;
+import org.praxislive.core.services.SystemManagerService;
 import org.praxislive.script.StackFrame;
 
 /**
@@ -49,10 +49,7 @@ class BaseCmds {
             "var", new Var(),
             "echo", new Echo(),
             "print", new Print(),
-            "user-input", new UserInput(),
-            "user-input-confirm", new UserInputConfirm(),
-            "user-input-map", new UserInputMap(),
-            "user-input-select", new UserInputSelect()
+            "exit", new Exit()
     );
 
     private BaseCmds() {
@@ -79,8 +76,13 @@ class BaseCmds {
                 namespace.createVariable(varName, val);
             }
             return List.of(val);
-
         }
+
+        @Override
+        public String description() {
+            return CoreCommands.message("set.description");
+        }
+
     }
 
     private static class Constant implements InlineCommand {
@@ -94,7 +96,11 @@ class BaseCmds {
             Value val = args.get(1);
             namespace.createConstant(varName, val);
             return List.of(val);
+        }
 
+        @Override
+        public String description() {
+            return CoreCommands.message("constant.description");
         }
     }
 
@@ -109,7 +115,11 @@ class BaseCmds {
             Value val = args.get(1);
             namespace.createVariable(varName, val);
             return List.of(val);
+        }
 
+        @Override
+        public String description() {
+            return CoreCommands.message("var.description");
         }
     }
 
@@ -129,6 +139,11 @@ class BaseCmds {
             }
         }
 
+        @Override
+        public String description() {
+            return CoreCommands.message("echo.description");
+        }
+
     }
 
     private static class Print implements InlineCommand {
@@ -141,40 +156,24 @@ class BaseCmds {
             return List.of(PString.of(args.get(0).print()));
         }
 
-    }
-
-    private static class UserInput implements Command {
-
         @Override
-        public StackFrame createStackFrame(Namespace namespace, List<Value> args) throws Exception {
-            return StackFrame.serviceCall(UserInputService.class, UserInputService.USER_INPUT, args);
+        public String description() {
+            return CoreCommands.message("print.description");
         }
 
     }
 
-    private static class UserInputConfirm implements Command {
+    private static class Exit implements Command {
 
         @Override
         public StackFrame createStackFrame(Namespace namespace, List<Value> args) throws Exception {
-            return StackFrame.serviceCall(UserInputService.class, UserInputService.USER_INPUT_CONFIRM, args);
+            return StackFrame.serviceCall(SystemManagerService.class,
+                    SystemManagerService.SYSTEM_EXIT, args);
         }
 
-    }
-
-    private static class UserInputMap implements Command {
-
         @Override
-        public StackFrame createStackFrame(Namespace namespace, List<Value> args) throws Exception {
-            return StackFrame.serviceCall(UserInputService.class, UserInputService.USER_INPUT_MAP, args);
-        }
-
-    }
-
-    private static class UserInputSelect implements Command {
-
-        @Override
-        public StackFrame createStackFrame(Namespace namespace, List<Value> args) throws Exception {
-            return StackFrame.serviceCall(UserInputService.class, UserInputService.USER_INPUT_SELECT, args);
+        public String description() {
+            return CoreCommands.message("exit.description");
         }
 
     }

@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright 2025 Neil C Smith.
+ * Copyright 2026 Neil C Smith.
  *
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 3 only, as
@@ -22,15 +22,19 @@
 
 package org.praxislive.script.commands;
 
+import java.text.MessageFormat;
 import java.util.Map;
+import java.util.ResourceBundle;
 import org.praxislive.script.Command;
 import org.praxislive.script.CommandInstaller;
 
 /**
- *
- * 
+ * Command installer for core script commands.
  */
-public class CoreCommandsInstaller implements CommandInstaller {
+public class CoreCommands implements CommandInstaller {
+    
+    private static final ResourceBundle MESSAGES
+            = ResourceBundle.getBundle(CoreCommands.class.getPackageName() + ".Messages");
 
     @Override
     public void install(Map<String, Command> commands) {
@@ -39,9 +43,22 @@ public class CoreCommandsInstaller implements CommandInstaller {
         AtCmds.install(commands);
         ConnectionCmds.install(commands);
         FileCmds.install(commands);
+        InfoCmds.install(commands);
+        IOCmds.install(commands);
+        JavaCmds.install(commands);
         MapCmds.install(commands);
-        ScriptCmds.install(commands);
+        OpCmds.install(commands);
         ProcessCmds.install(commands);
+        ScriptCmds.install(commands);
+        StringCmds.install(commands);
+    }
+    
+    static String message(String key) {
+        return MESSAGES.getString(key);
+    }
+    
+    static String message(String key, Object... arguments) {
+        return MessageFormat.format(MESSAGES.getString(key), arguments);
     }
 
 }
