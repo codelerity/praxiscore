@@ -159,7 +159,7 @@ public class DefaultCodeFactoryService extends AbstractRoot
                 .filter(name -> WRAPPED_CLASS_NAME.equals(name) || name.endsWith("." + WRAPPED_CLASS_NAME))
                 .findFirst()
                 .orElseThrow();
-        PArray.from(data.get(DefaultCompilerService.EXT_CLASSPATH)).ifPresent(this::processExtClasspath);
+        PArray.from(data.get(CodeCompilerService.KEY_EXT_CLASSPATH)).ifPresent(this::processExtClasspath);
         ClassLoader classLoader = new PMapClassLoader(classes,
                 parentClassLoader == null ? libClassloader : parentClassLoader);
         return (Class<? extends CodeDelegate>) classLoader.loadClass(className);
@@ -514,7 +514,7 @@ public class DefaultCodeFactoryService extends AbstractRoot
             PMap data = PMap.from(call.args().get(0)).orElseThrow();
             PMap classes = PMap.from(data.get(CodeCompilerService.KEY_CLASSES)).orElseThrow();
             SharedCodeService.Task task = findTask();
-            PArray.from(data.get(DefaultCompilerService.EXT_CLASSPATH))
+            PArray.from(data.get(CodeCompilerService.KEY_EXT_CLASSPATH))
                     .ifPresent(ext -> processExtClasspath(ext));
             Map<String, List<String>> partionedClasses = partitionClasses(classes);
             ClassLoader sharedClasses = createClassloader(libClassloader, classes,

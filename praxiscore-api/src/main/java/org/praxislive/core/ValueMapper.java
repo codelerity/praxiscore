@@ -449,11 +449,7 @@ public abstract class ValueMapper<T> {
 
         @Override
         public ArgumentInfo createInfo() {
-            return Info.argument().string()
-                    .allowed(Arrays.stream(enumCls.getEnumConstants())
-                            .map(Object::toString).toArray(String[]::new))
-                    .build();
-
+            return Info.argument().fromEnumValues(enumCls).build();
         }
 
     }

@@ -620,6 +620,19 @@ public class Info {
             return new StringInfoBuilder();
         }
 
+        /**
+         * Create a StringInfoBuilder with the allowed values filled in from the
+         * enum constants.
+         *
+         * @param type enum type
+         * @return builder
+         */
+        public StringInfoBuilder fromEnumValues(Class<? extends Enum> type) {
+            return string().allowed(Stream.of(type.getEnumConstants())
+                    .map(Enum::name)
+                    .toArray(String[]::new));
+        }
+
     }
 
     /**
@@ -668,6 +681,31 @@ public class Info {
             return (T) this;
         }
 
+        /**
+         * Mark as allowing empty values.
+         *
+         * @see ArgumentInfo#KEY_ALLOW_EMPTY
+         * @return this
+         */
+        public T allowEmpty() {
+            return attribute(ArgumentInfo.KEY_ALLOW_EMPTY, true);
+        }
+
+        /**
+         * Mark as optional.
+         *
+         * @see ArgumentInfo#KEY_OPTIONAL
+         * @return this
+         */
+        public T optional() {
+            return attribute(ArgumentInfo.KEY_OPTIONAL, true);
+        }
+
+        /**
+         * Build the argument info.
+         *
+         * @return created argument info
+         */
         public ArgumentInfo build() {
             return ArgumentInfo.create(type,
                     attributes == null ? PMap.EMPTY : attributes.build());
