@@ -21,18 +21,23 @@
  */
 package org.praxislive.code.internal;
 
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.ResourceBundle;
+import java.util.stream.Collectors;
 import org.praxislive.code.CodeCompilerService;
 import org.praxislive.code.SharedCodeProtocol;
 import org.praxislive.core.ComponentAddress;
 import org.praxislive.core.ControlAddress;
 import org.praxislive.core.types.PArray;
 import org.praxislive.core.Value;
+import org.praxislive.core.services.LogLevel;
+import org.praxislive.core.services.LogService;
 import org.praxislive.core.types.PMap;
 import org.praxislive.core.types.PResource;
+import org.praxislive.core.types.PString;
 import org.praxislive.script.Command;
 import org.praxislive.script.CommandInstaller;
 import org.praxislive.script.Env;
@@ -46,7 +51,7 @@ import org.praxislive.script.Variable;
  */
 public class CodeCommands implements CommandInstaller {
 
-    private static final ResourceBundle MESSAGES
+    static final ResourceBundle MESSAGES
             = ResourceBundle.getBundle(CodeCommands.class.getPackageName() + ".Messages");
 
     private static final Map<String, Command> COMMANDS = Map.ofEntries(
@@ -66,7 +71,9 @@ public class CodeCommands implements CommandInstaller {
             Map.entry(SharedCodeProtocol.SHARED_CODE_ADD,
                     new SharedCode(SharedCodeProtocol.SHARED_CODE_ADD)),
             Map.entry(SharedCodeProtocol.SHARED_CODE_MERGE,
-                    new SharedCode(SharedCodeProtocol.SHARED_CODE_MERGE))
+                    new SharedCode(SharedCodeProtocol.SHARED_CODE_MERGE)),
+            Map.entry("sources", new Sources()),
+            Map.entry("sources-write", new SourcesWrite())
     );
 
     @Override
@@ -218,6 +225,60 @@ public class CodeCommands implements CommandInstaller {
                 default ->
                     "";
             };
+        }
+
+    }
+
+    private static class Sources implements Command {
+
+        @Override
+        public StackFrame createStackFrame(Namespace namespace, List<Value> args) throws Exception {
+            if (args.size() != 1) {
+                throw new IllegalArgumentException("Incorrect number of arguments");
+            }
+            URI path = ScriptUtils.resolvePath(namespace, args.get(0).toString());
+            return StackFrame.async(() -> SourcesSupport.readSources(path));
+        }
+
+        @Override
+        public String description() {
+            return MESSAGES.getString("sources.description");
+        }
+
+    }
+
+    private static class SourcesWrite implements Command {
+
+        @Override
+        public StackFrame createStackFrame(Namespace namespace, List<Value> args) throws Exception {
+            if (args.size() != 2) {
+                throw new IllegalArgumentException("Incorrect number of arguments");
+            }
+            PMap sources = PMap.from(args.get(0)).orElseThrow(IllegalArgumentException::new);
+            URI path = ScriptUtils.resolvePath(namespace, args.get(1).toString());
+            return StackFrame.async(() -> {
+                List<String> warnings = SourcesSupport.writeSources(sources, path);
+                if (warnings.isEmpty()) {
+                    return PString.EMPTY;
+                } else {
+                    return PString.of(warnings.stream().collect(Collectors.joining("\n")));
+                }
+            }).andThen(v -> {
+                PString msg = PString.of(v.get(0));
+                if (!msg.isEmpty()) {
+                    return StackFrame.serviceCall(LogService.class,
+                            LogService.LOG, List.of(
+                                    PString.of(LogLevel.WARNING), msg));
+                } else {
+                    return StackFrame.empty();
+                }
+            });
+
+        }
+
+        @Override
+        public String description() {
+            return MESSAGES.getString("sources-write.description");
         }
 
     }
