@@ -257,6 +257,9 @@ public class BindingContextControl implements Control, BindingContext {
             if (infoAdaptor != null) {
                 infoAdaptor.setActive(active);
             }
+            if (activeCall != null && activeCall.args().isEmpty()) {
+                activeCall = null;
+            }
             if (!isSyncable || !active || highRate == SyncRate.None) {
                 syncPeriod = 0;
                 syncing.remove(this);

@@ -157,8 +157,13 @@ public class BasicCoreRoot extends AbstractRoot {
 
     @Override
     protected void processCall(Call call, PacketRouter router) {
-        Control control = controls.get(call.to().controlID());
         try {
+            Control control;
+            if (Objects.equals(getAddress(), call.to().component())) {
+                control = controls.get(call.to().controlID());
+            } else {
+                control = null;
+            }
             if (control != null) {
                 control.call(call, router);
             } else {
