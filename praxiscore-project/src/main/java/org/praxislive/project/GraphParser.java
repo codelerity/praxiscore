@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  * 
- * Copyright 2024 Neil C Smith.
+ * Copyright 2026 Neil C Smith.
  * 
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 3 only, as
@@ -242,13 +242,7 @@ class GraphParser {
         if (tokens.size() != 1) {
             throw new IllegalArgumentException("Empty tokens passed to parseProperty ." + property);
         }
-        Value value;
-        if (context != null) {
-            value = SyntaxUtils.valueFromToken(context, tokens.get(0));
-        } else {
-            value = SyntaxUtils.valueFromToken(tokens.get(0));
-        }
-        component.property(property, value);
+        component.property(property, SyntaxUtils.propertyFromToken(context, tokens.get(0)));
     }
 
     private void parseConnection(GraphBuilder.Base<?> parent, List<Token> tokens) {

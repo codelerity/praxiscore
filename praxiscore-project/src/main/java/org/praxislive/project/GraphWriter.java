@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  * 
- * Copyright 2024 Neil C Smith.
+ * Copyright 2026 Neil C Smith.
  * 
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 3 only, as
@@ -23,7 +23,10 @@ package org.praxislive.project;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.Map;
 import org.praxislive.core.Value;
+
+import static org.praxislive.project.GraphElement.*;
 
 /**
  *
@@ -56,16 +59,16 @@ class GraphWriter {
         }
     }
 
-    private void writeCommands(Appendable sb, GraphElement.Root root)
+    private void writeCommands(Appendable sb, Root root)
             throws IOException {
-        for (GraphElement.Command cmd : root.commands()) {
-            sb.append(cmd.command()).append('\n');
+        for (Command cmd : root.commands()) {
+            sb.append(cmd.script()).append('\n');
         }
     }
 
     private void writeComponent(Appendable sb,
             String id,
-            GraphElement.Component cmp,
+            Component cmp,
             int level) throws IOException {
         writeIndent(sb, level);
         sb.append(AT).append(' ');
@@ -83,7 +86,7 @@ class GraphWriter {
         sb.append("}\n");
     }
 
-    private void writeComments(Appendable sb, GraphElement.Component cmp, int level)
+    private void writeComments(Appendable sb, Component cmp, int level)
             throws IOException {
         for (GraphElement.Comment comment : cmp.comments()) {
             writeIndent(sb, level);
@@ -93,34 +96,38 @@ class GraphWriter {
         }
     }
 
-    private void writeProperties(Appendable sb, GraphElement.Component cmp, int level)
+    private void writeProperties(Appendable sb, Component cmp, int level)
             throws IOException {
-        for (var entry : cmp.properties().entrySet()) {
+        for (Map.Entry<String, Property> entry : cmp.properties().entrySet()) {
             String id = entry.getKey();
-            Value value = entry.getValue().value();
+            Property prop = entry.getValue();
             writeIndent(sb, level);
             sb.append('.').append(id).append(' ');
-            if (context != null) {
-                SyntaxUtils.writeValue(context, value, sb);
+            if (prop.hasCommand()) {
+                sb.append("[").append(prop.command().script()).append("]");
             } else {
-                SyntaxUtils.writeValue(value, sb);
+                if (context != null) {
+                    SyntaxUtils.writeValue(context, prop.value(), sb);
+                } else {
+                    SyntaxUtils.writeValue(prop.value(), sb);
+                }
             }
             sb.append('\n');
         }
     }
 
-    private void writeChildren(Appendable sb, GraphElement.Component cmp, int level)
+    private void writeChildren(Appendable sb, Component cmp, int level)
             throws IOException {
-        for (var entry : cmp.children().entrySet()) {
+        for (Map.Entry<String, Component> entry : cmp.children().entrySet()) {
             String id = entry.getKey();
             GraphElement.Component child = entry.getValue();
             writeComponent(sb, id, child, level);
         }
     }
 
-    private void writeConnections(Appendable sb, GraphElement.Component cmp, int level)
+    private void writeConnections(Appendable sb, Component cmp, int level)
             throws IOException {
-        for (GraphElement.Connection c : cmp.connections()) {
+        for (Connection c : cmp.connections()) {
             writeIndent(sb, level);
             sb.append(CONNECT).append(' ');
             sb.append("./").append(c.sourceComponent()).append('!').append(c.sourcePort()).append(' ');
