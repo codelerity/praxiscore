@@ -72,17 +72,14 @@ import org.praxislive.core.services.Services;
 public class DefaultCompilerService extends AbstractRoot
         implements RootHub.ServiceProvider {
 
-    static final String EXT_CLASSPATH = "ext-classpath";
+    private static final SourceVersion BASELINE_VERSION = SourceVersion.RELEASE_21;
 
     private static final ComponentInfo INFO;
 
     static {
         INFO = Info.component(cmp -> cmp
                 .merge(ComponentProtocol.API_INFO)
-                .merge(CodeCompilerService.API_INFO)
-                .control("libraries", c -> c.readOnlyProperty().output(PArray.class))
-                .control("libraries-all", c -> c.readOnlyProperty().output(PArray.class))
-                .control("libraries-path", c -> c.readOnlyProperty().output(PArray.class))
+                .merge(CodeCompilerService.FULL_API_INFO)
         );
     }
 
@@ -106,28 +103,23 @@ public class DefaultCompilerService extends AbstractRoot
 
         controls = Map.of(
                 CodeCompilerService.COMPILE, new CompileControl(),
-                "add-libs", new AddLibsControl(),
-                "release", new JavaReleaseControl(),
-                "libraries", (call, router) -> {
-                    if (call.isRequest()) {
-                        router.route(call.reply(libs));
-                    }
-                },
-                "libraries-all", (call, router) -> {
+                CodeCompilerService.LIBRARIES, new LibrariesControl(),
+                CodeCompilerService.LIBRARIES_ALL, (call, router) -> {
                     if (call.isRequest()) {
                         router.route(call.reply(libsAll));
                     }
                 },
-                "libraries-system", (call, router) -> {
+                CodeCompilerService.LIBRARIES_SYSTEM, (call, router) -> {
                     if (call.isRequest()) {
                         router.route(call.reply(libsSys));
                     }
                 },
-                "libraries-path", (call, router) -> {
+                CodeCompilerService.LIBRARIES_PATH, (call, router) -> {
                     if (call.isRequest()) {
                         router.route(call.reply(libPath));
                     }
                 },
+                CodeCompilerService.OPTIONS, new OptionControl(),
                 ComponentProtocol.INFO, (call, router) -> {
                     if (call.isRequest()) {
                         router.route(call.reply(INFO));
@@ -138,7 +130,7 @@ public class DefaultCompilerService extends AbstractRoot
         if (compiler == null) {
             throw new RuntimeException("No compiler found");
         }
-        release = SourceVersion.RELEASE_11;
+        release = BASELINE_VERSION;
         libFiles = new LinkedHashSet<>();
         libResolved = new LinkedHashSet<>();
         libProvided = new LinkedHashSet<>();
@@ -224,7 +216,7 @@ public class DefaultCompilerService extends AbstractRoot
             PMap classes = convertClasses(classFiles);
             PMap response = PMap.of(CodeCompilerService.KEY_CLASSES, classes,
                     CodeCompilerService.KEY_LOG, PArray.of(log.toList()),
-                    EXT_CLASSPATH, libPath);
+                    CodeCompilerService.KEY_EXT_CLASSPATH, libPath);
             return response;
         }
 
@@ -262,15 +254,15 @@ public class DefaultCompilerService extends AbstractRoot
         private Map<String, Supplier<InputStream>> processExistingClasses(PMap classes) {
             return classes.keys().stream()
                     .map(cls -> Map.entry(cls, (Supplier<InputStream>) ()
-                    -> PBytes.from(classes.get(cls))
-                            .map(PBytes::asInputStream)
-                            .orElseGet(PBytes.EMPTY::asInputStream)))
+                            -> PBytes.from(classes.get(cls))
+                                    .map(PBytes::asInputStream)
+                                    .orElseGet(PBytes.EMPTY::asInputStream)))
                     .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
         }
 
     }
 
-    private class AddLibsControl implements Control, LibraryResolver.Context {
+    private class LibrariesControl implements Control, LibraryResolver.Context {
 
         private static final String MAP_FILE_NAME = "libraries.map";
         private static final String MAP_KEY_LIBRARIES = "libraries";
@@ -279,24 +271,28 @@ public class DefaultCompilerService extends AbstractRoot
 
         private final LogBuilder log;
 
-        private AddLibsControl() {
+        private LibrariesControl() {
             this.log = new LogBuilder(LogLevel.INFO);
         }
 
         @Override
         public void call(Call call, PacketRouter router) throws Exception {
             if (call.isRequest()) {
-                PArray addLibs = PArray.from(call.args().get(0))
-                        .orElseThrow(IllegalArgumentException::new);
-                process(addLibs);
-                if (!log.isEmpty()) {
-                    getLookup().find(Services.class)
-                            .flatMap(s -> s.locate(LogService.class))
-                            .ifPresent(ad -> router.route(Call.createQuiet(
-                            ControlAddress.of(ad, LogService.LOG),
-                            call.to(), call.time(), log.toList()))
-                            );
-                    log.clear();
+                if (call.args().size() == 1) {
+                    PArray addLibs = PArray.from(call.args().get(0))
+                            .orElseThrow(IllegalArgumentException::new);
+                    process(addLibs);
+                    if (!log.isEmpty()) {
+                        getLookup().find(Services.class)
+                                .flatMap(s -> s.locate(LogService.class))
+                                .ifPresent(ad -> router.route(Call.createQuiet(
+                                        ControlAddress.of(ad, LogService.LOG),
+                                        call.to(), call.time(), log.toList()))
+                                );
+                        log.clear();
+                    }
+                } else if (!call.args().isEmpty()) {
+                    throw new IllegalArgumentException("Too many arguments");
                 }
                 router.route(call.reply(libs));
             }
@@ -416,16 +412,24 @@ public class DefaultCompilerService extends AbstractRoot
 
     }
 
-    private class JavaReleaseControl implements Control {
+    private class OptionControl implements Control {
 
         @Override
         public void call(Call call, PacketRouter router) throws Exception {
             if (call.isRequest()) {
-                int requestedRelease = PNumber.from(call.args().get(0))
-                        .orElseThrow().toIntValue();
-                process(requestedRelease);
+                if (call.args().size() == 1) {
+                    Map<String, Value> options = PMap.from(call.args().getFirst())
+                            .map(PMap::asMap)
+                            .orElseThrow();
+                    if (options.containsKey("release")) {
+                        process(PNumber.from(options.get("release"))
+                                .map(PNumber::toIntValue)
+                                .orElseThrow(IllegalArgumentException::new));
+                    }
+                }
+
                 if (call.isReplyRequired()) {
-                    router.route(call.reply(call.args()));
+                    router.route(call.reply(PMap.of("release", release.runtimeVersion().feature())));
                 }
             } else {
                 throw new UnsupportedOperationException();
@@ -436,9 +440,6 @@ public class DefaultCompilerService extends AbstractRoot
             if (requestedRelease <= release.ordinal()) {
                 return;
             }
-//            if (requestedRelease < release.ordinal()) {
-//                throw new IllegalArgumentException("Cannot set release version lower than existing : " + release.ordinal());
-//            }
             SourceVersion requested = compiler.getSourceVersions().stream()
                     .filter(v -> v.ordinal() == requestedRelease)
                     .findFirst().orElseThrow(() -> new IllegalArgumentException("Unsupported release version : " + requestedRelease));

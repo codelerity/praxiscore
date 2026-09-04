@@ -284,6 +284,20 @@ public class SyntaxUtils {
         return sb.toString();
     }
 
+    static GraphElement.Property propertyFromToken(URI context, Token token) {
+        Objects.requireNonNull(token);
+        return switch (token.getType()) {
+            case PLAIN ->
+                GraphElement.property(valueFromPlainToken(token.getText()));
+            case QUOTED, BRACED ->
+                GraphElement.property(PString.of(token.getText()));
+            case SUBCOMMAND ->
+                propertyFromSubcommand(context, token.getText());
+            default ->
+                throw new IllegalArgumentException("Invalid token type : " + token);
+        };
+    }
+
     private static String doPlain(String input) {
         int len = input.length();
         if (len == 0 || len > MAX_LENGTH_PLAIN) {
@@ -384,6 +398,24 @@ public class SyntaxUtils {
         } catch (Exception ex) {
             return PString.of(text);
         }
+    }
+
+    private static GraphElement.Property propertyFromSubcommand(URI context, String command) {
+        List<Token> tokens = subcommandTokens(command);
+        Token token = tokens.get(0);
+        if (tokens.get(0).getType() != PLAIN) {
+            throw new IllegalArgumentException("First token is not a plain command : " + command);
+        }
+        return switch (token.getText()) {
+            case "array" ->
+                GraphElement.property(arrayFromCommand(context, tokens));
+            case "map" ->
+                GraphElement.property(mapFromCommand(context, tokens));
+            case "file" ->
+                GraphElement.property(fileFromCommand(context, tokens));
+            default ->
+                GraphElement.property(GraphElement.command(command), PString.EMPTY);
+        };
     }
 
     private static Value valueFromSubcommand(URI context, String command) {

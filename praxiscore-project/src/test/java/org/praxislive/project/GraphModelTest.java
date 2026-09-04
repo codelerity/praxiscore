@@ -137,7 +137,7 @@ public class GraphModelTest {
                 "container", "ready", "child1", "trigger"),
                 model.root().connections().stream()
                         .flatMap(c -> Stream.of(c.sourceComponent(), c.sourcePort(),
-                        c.targetComponent(), c.targetPort())
+                                c.targetComponent(), c.targetPort())
                         ).toList());
         assertEquals(PARENT_CONTEXT, model.context().orElseThrow());
     }
@@ -172,7 +172,7 @@ public class GraphModelTest {
                 "container", "ready", "child1", "trigger"),
                 model.root().connections().stream()
                         .flatMap(c -> Stream.of(c.sourceComponent(), c.sourcePort(),
-                        c.targetComponent(), c.targetPort())
+                                c.targetComponent(), c.targetPort())
                         ).toList());
         assertEquals(PARENT_CONTEXT, model.context().orElseThrow());
         assertEquals(2, model.root().commands().size());
@@ -268,7 +268,7 @@ public class GraphModelTest {
                 "container", "ready", "child1", "trigger"),
                 model.root().connections().stream()
                         .flatMap(c -> Stream.of(c.sourceComponent(), c.sourcePort(),
-                        c.targetComponent(), c.targetPort())
+                                c.targetComponent(), c.targetPort())
                         ).toList());
     }
 
@@ -324,6 +324,50 @@ public class GraphModelTest {
     }
 
     @Test
+    public void testPropertyWithCommand() throws ParseException {
+        String script = """
+                        @ /root root:custom {
+                          .shared-code [sources "code/root"]
+                        }
+                        """;
+        GraphModel model = GraphModel.parse(script);
+        GraphElement.Command cmd = GraphElement.command("sources \"code/root\"");
+        assertEquals(1, model.root().properties().size());
+        GraphElement.Property sharedCodeProp = model.root().properties().get("shared-code");
+        assertTrue(sharedCodeProp.hasCommand());
+        assertEquals(cmd.script(), sharedCodeProp.command().script());
+        assertEquals(script, model.writeToString());
+        PMap sources = PMap.of(
+                "SHARED.Foo", "package SHARED;\n\npublic class Foo {}\n"
+        );
+        PMap serData = PMap.of(
+                "%type", ComponentType.of("root:custom"),
+                "%info", Info.component()
+                        .merge(ComponentProtocol.API_INFO)
+                        .control("shared-code",
+                                Info.control().property().input(PMap.class).build())
+                        .build(),
+                "shared-code", sources
+        );
+        model = GraphModel.fromSerializedRoot("root", serData);
+        model = model.withTransform(r -> {
+            r.transformProperties(props -> props
+                    .map(p -> {
+                        if ("shared-code".equals(p.getKey())) {
+                            return Map.entry(p.getKey(),
+                                    GraphElement.property(cmd, p.getValue().value()));
+                        } else {
+                            return p;
+                        }
+                    }).toList());
+        });
+        sharedCodeProp = model.root().properties().get("shared-code");
+        assertTrue(sharedCodeProp.hasCommand());
+        assertEquals(sources, sharedCodeProp.value());
+        assertEquals(script, model.writeToString());
+    }
+
+    @Test
     public void testTransform() throws ParseException {
         String script = """
                         @ /root root:custom {
@@ -342,8 +386,8 @@ public class GraphModelTest {
         GraphModel model = GraphModel.parse(script);
         GraphModel transformed = model.withTransform(root
                 -> root.transformChildren(children -> children
-                .map(c -> Map.entry(c.getKey(), rewriteMeta(c.getValue())))
-                .toList()));
+                        .map(c -> Map.entry(c.getKey(), rewriteMeta(c.getValue())))
+                        .toList()));
         if (VERBOSE) {
             System.out.println("Transformed model");
             System.out.println(transformed);
@@ -436,7 +480,7 @@ public class GraphModelTest {
                 "container", "ready", "child1", "trigger"),
                 model.root().connections().stream()
                         .flatMap(c -> Stream.of(c.sourceComponent(), c.sourcePort(),
-                        c.targetComponent(), c.targetPort())
+                                c.targetComponent(), c.targetPort())
                         ).toList());
     }
 

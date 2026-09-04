@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  * 
- * Copyright 2024 Neil C Smith.
+ * Copyright 2026 Neil C Smith.
  * 
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 3 only, as
@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.SequencedMap;
 import java.util.SequencedSet;
@@ -49,13 +50,13 @@ public sealed abstract class GraphElement {
      * Create a Command element from the given script line. The command must be
      * a single line of script with a plain first token.
      *
-     * @param command script line
+     * @param script script line
      * @return command element
      * @throws IllegalArgumentException if the command fails to parse according
      * to the rules
      */
-    public static Command command(String command) {
-        Iterator<Token> itr = new Tokenizer(command).iterator();
+    public static Command command(String script) {
+        Iterator<Token> itr = new Tokenizer(script).iterator();
         List<Token> tokens = new ArrayList<>();
         while (itr.hasNext()) {
             Token token = itr.next();
@@ -74,7 +75,7 @@ public sealed abstract class GraphElement {
         if (itr.hasNext()) {
             throw new IllegalArgumentException("Invalid command - tokens found after EOL");
         }
-        return new Command(command, tokens);
+        return new Command(script, tokens);
     }
 
     /**
@@ -110,6 +111,19 @@ public sealed abstract class GraphElement {
      */
     public static Property property(Value value) {
         return new Property(value);
+    }
+
+    /**
+     * Create a property element set from the given command result. If the value
+     * is known (eg. from serialization) it should be included in the element
+     * for future processing. Otherwise, an empty value should be set.
+     *
+     * @param subcommand command to set property from
+     * @param value property value
+     * @return property element
+     */
+    public static Property property(Command subcommand, Value value) {
+        return new Property(value, subcommand);
     }
 
     static Component component(ComponentType type,
@@ -318,43 +332,72 @@ public sealed abstract class GraphElement {
 
     }
 
+    /**
+     * A command element. Command elements are single Pcl script lines that may
+     * be added at the beginning of a graph model, for example to configure
+     * libraries. Command elements may also be used inside {@link Property}
+     * elements to represent properties set from the output of a command.
+     */
     public static final class Command extends GraphElement {
 
-        private final String command;
+        private final String script;
         private final List<Token> tokens;
 
-        Command(String command, List<Token> tokens) {
-            this.command = Objects.requireNonNull(command);
+        private Command(String command, List<Token> tokens) {
+            this.script = Objects.requireNonNull(command);
             this.tokens = List.copyOf(tokens);
         }
 
+        /**
+         * The full command as a String.
+         *
+         * @return command
+         */
+        @Deprecated
         public String command() {
-            return command;
+            return script;
         }
 
+        /**
+         * The line of script as text.
+         *
+         * @return command text
+         */
+        public String script() {
+            return script;
+        }
+
+        /**
+         * The tokens making up the line of script.
+         *
+         * @return token list
+         */
         public List<Token> tokens() {
             return tokens;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hashCode(command);
+            return Objects.hashCode(script);
         }
 
         @Override
         public boolean equals(Object obj) {
             return obj == this
                     || obj instanceof Command c
-                    && Objects.equals(this.command, c.command);
+                    && Objects.equals(this.script, c.script);
         }
 
         @Override
         public String toString() {
-            return "Command{" + "command=" + command + "}";
+            return "Command{" + "command=" + script + "}";
         }
 
     }
 
+    /**
+     * A comment element representing a comment in the graph.
+     */
     public static final class Comment extends GraphElement {
 
         private final String text;
@@ -363,6 +406,11 @@ public sealed abstract class GraphElement {
             this.text = Objects.requireNonNull(text);
         }
 
+        /**
+         * Comment text.
+         *
+         * @return comment text
+         */
         public String text() {
             return text;
         }
@@ -386,37 +434,89 @@ public sealed abstract class GraphElement {
 
     }
 
+    /**
+     * A property element representing a component property. The property
+     * element encapsulates the value and any optional command used to set a
+     * property. The element does not include the ID.
+     * <p>
+     * If a property element is created with a command, this command will be
+     * written as a nested command in the graph output, setting the property to
+     * the result of executing the command.
+     */
     public static final class Property extends GraphElement {
 
         private final Value value;
+        private final Command command;
 
         private Property(Value value) {
-            this.value = Objects.requireNonNull(value);
+            this(value, null);
         }
 
+        private Property(Value value, Command command) {
+            this.value = Objects.requireNonNull(value);
+            this.command = command;
+        }
+
+        /**
+         * Property value
+         *
+         * @return value
+         */
         public Value value() {
             return value;
         }
 
+        /**
+         * Query whether the element has a command.
+         *
+         * @return command
+         */
+        public boolean hasCommand() {
+            return command != null;
+        }
+
+        /**
+         * The command to be used to set the property, if present.
+         *
+         * @return command
+         * @throws NoSuchElementException if the element does not have a command
+         */
+        public Command command() {
+            if (command != null) {
+                return command;
+            } else {
+                throw new NoSuchElementException();
+            }
+        }
+
         @Override
         public int hashCode() {
-            return Objects.hashCode(value);
+            return Objects.hash(value, command);
         }
 
         @Override
         public boolean equals(Object obj) {
             return obj == this
                     || obj instanceof Property p
-                    && Objects.equals(this.value, p.value);
+                    && Objects.equals(this.value, p.value)
+                    && Objects.equals(this.command, p.command);
         }
 
         @Override
         public String toString() {
-            return "Property{" + "value=" + value + "}";
+            if (command != null) {
+                return "Property{" + "command=[" + command + "] value=" + value + "}";
+            } else {
+                return "Property{" + "value=" + value + "}";
+            }
         }
 
     }
 
+    /**
+     * A connection element representing the connection of two ports within the
+     * graph.
+     */
     public static final class Connection extends GraphElement {
 
         private final org.praxislive.core.Connection value;
@@ -425,25 +525,45 @@ public sealed abstract class GraphElement {
             value = org.praxislive.core.Connection.of(sourceComponent, sourcePort, targetComponent, targetPort);
         }
 
+        /**
+         * Source component ID.
+         *
+         * @return source component
+         */
         public String sourceComponent() {
             return value.sourceComponent();
         }
 
+        /**
+         * Source port ID.
+         *
+         * @return source port
+         */
         public String sourcePort() {
             return value.sourcePort();
         }
 
+        /**
+         * Target component ID.
+         *
+         * @return target component
+         */
         public String targetComponent() {
             return value.targetComponent();
         }
 
+        /**
+         * Target port ID.
+         *
+         * @return target port
+         */
         public String targetPort() {
             return value.targetPort();
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(value);
+            return Objects.hashCode(value);
         }
 
         @Override

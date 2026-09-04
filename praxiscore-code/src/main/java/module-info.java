@@ -5,6 +5,7 @@ module org.praxislive.code {
 
     requires transitive org.praxislive.core;
     requires org.praxislive.base;
+    requires org.praxislive.script;
     
     exports org.praxislive.code;
     exports org.praxislive.code.userapi;
@@ -15,6 +16,8 @@ module org.praxislive.code {
             org.praxislive.code.internal.CodePortTypeProvider;
     provides org.praxislive.core.Protocol.TypeProvider with
             org.praxislive.code.internal.CodeProtocolsProvider;
+    provides org.praxislive.script.CommandInstaller with
+            org.praxislive.code.internal.CodeCommands;
     
     uses org.praxislive.code.CodeConnector.Plugin;
     
