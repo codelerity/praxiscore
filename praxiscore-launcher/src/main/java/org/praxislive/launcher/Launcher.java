@@ -34,6 +34,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.text.MessageFormat;
 import java.util.Arrays;
 import java.util.Optional;
@@ -304,21 +305,29 @@ public class Launcher {
             }
 
             final String script;
-            File scriptFile = autorun == null ? file : autorun;
-            if (scriptFile != null) {
-                scriptFile = scriptFile.getAbsoluteFile();
-                if (scriptFile.isDirectory()) {
-                    scriptFile = new File(scriptFile, "project.pxp");
+            if (file != null || autorun != null) {
+                Path scriptPath = file == null ? autorun.toPath() : file.toPath();
+                scriptPath = scriptPath.toAbsolutePath().normalize();
+                if (Files.isDirectory(scriptPath)) {
+                    scriptPath = scriptPath.resolve("project.pxp");
                 }
-                if (!scriptFile.exists()) {
-                    error("No file found at " + scriptFile);
+                if (!Files.exists(scriptPath)) {
+                    error("No file found at " + scriptPath);
                     return 1;
                 }
+                String header = """
+                                global {
+                                    constant _FILE %s
+                                }
+                                cd %s
+                                """.formatted(
+                        scriptPath.toUri(),
+                        scriptPath.getParent().toUri()
+                );
                 try {
-                    script = "set _PWD " + scriptFile.getParentFile().toURI() + "\n"
-                            + Files.readString(scriptFile.toPath());
+                    script = header + Files.readString(scriptPath);
                 } catch (Exception ex) {
-                    error("Unable to read script at " + scriptFile);
+                    error("Unable to read script at " + scriptPath);
                     return 1;
                 }
             } else {
@@ -375,11 +384,10 @@ public class Launcher {
                 hubBuilder.extendLookup(logLevel);
 
                 Hub hub = hubBuilder.build();
-                hub.start();
-
                 if (script != null) {
                     hub.eval(script);
                 }
+                hub.start();
 
                 if (requireServer) {
                     var serverInfo = coreFactory.awaitInfo(30, TimeUnit.SECONDS);
