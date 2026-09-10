@@ -128,7 +128,7 @@ public class CodeCommands implements CommandInstaller {
                         .map(PResource::of)
                         .toList();
             } catch (Exception ex) {
-                throw new IllegalArgumentException(ex);
+                return List.of();
             }
         }
 
