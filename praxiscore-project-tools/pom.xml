@@ -6,14 +6,24 @@
     <artifactId>praxiscore</artifactId>
     <version>6.8.0-SNAPSHOT</version>
   </parent>
-  <artifactId>praxiscore-project</artifactId>
+  <artifactId>praxiscore-project-tools</artifactId>
   <packaging>jar</packaging>
-  <name>PraxisCORE Project</name>
-    
+  <name>PraxisCORE Project Tools</name>
+
   <dependencies>
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>praxiscore-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>praxiscore-project</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>praxiscore-script</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -44,5 +54,5 @@
       </plugin>
     </plugins>
   </build>
-    
+
 </project>
