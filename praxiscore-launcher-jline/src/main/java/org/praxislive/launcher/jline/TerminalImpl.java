@@ -119,7 +119,7 @@ class TerminalImpl {
 
     synchronized void postRequest(Call call) {
         requestQueue.add(call);
-        if (requestQueue.size() == 1) {
+        if (requestQueue.size() == 1 && reader != null && reader.isReading()) {
             inputThread.interrupt();
         }
     }
