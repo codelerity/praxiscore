@@ -187,8 +187,11 @@ public class CodeCommands implements CommandInstaller {
 
         @Override
         public StackFrame createStackFrame(Namespace namespace, List<Value> args) throws Exception {
-            return StackFrame.serviceCall(CodeCompilerService.class,
-                    CodeCompilerService.OPTIONS, PMap.of("release", args.get(0)));
+            return StackFrame.serviceCall(LogService.class, LogService.LOG,
+                    List.of(LogLevel.WARNING.asPString(),
+                            PString.of(MESSAGES.getString("java-release.deprecation")))
+            ).andThen(v -> StackFrame.serviceCall(CodeCompilerService.class,
+                    CodeCompilerService.OPTIONS, PMap.of("release", args.get(0))));
         }
 
     }

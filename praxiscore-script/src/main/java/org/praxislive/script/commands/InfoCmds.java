@@ -32,6 +32,7 @@ import org.praxislive.core.types.PArray;
 import org.praxislive.core.types.PMap;
 import org.praxislive.core.types.PString;
 import org.praxislive.script.Command;
+import org.praxislive.script.Env;
 import org.praxislive.script.Namespace;
 import org.praxislive.script.StackFrame;
 
@@ -90,6 +91,8 @@ class InfoCmds {
                 case "namespace" ->
                     PMap.of("commands", commands(namespace),
                     "variables", variables(namespace));
+                case "last-error" ->
+                    PString.of(namespace.getValue(Env.ERROR, PString.EMPTY).print());
                 default ->
                     PString.of(namespace.getCommand(command).description());
             };

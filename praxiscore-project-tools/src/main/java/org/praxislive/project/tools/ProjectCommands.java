@@ -35,13 +35,45 @@ import org.praxislive.script.StackFrame;
 public final class ProjectCommands implements CommandInstaller {
 
     private static final Map<String, Command> COMMANDS = Map.ofEntries(
-            Map.entry("project-build", new ProjectExecute(false)),
-            Map.entry("project-run", new ProjectExecute(true))
+            Map.entry("project", new Project()),
+            Map.entry("project-build", new Project("build")),
+            Map.entry("project-run", new Project("run"))
+    );
+
+    private static final Map<String, Command> SUB_COMMANDS = Map.ofEntries(
+            Map.entry("build", new ProjectExecute(false)),
+            Map.entry("run", new ProjectExecute(true))
     );
 
     @Override
     public void install(Map<String, Command> commands) {
         commands.putAll(COMMANDS);
+    }
+
+    private static class Project implements Command {
+
+        private final String subcommand;
+
+        private Project() {
+            this(null);
+        }
+
+        private Project(String subcommand) {
+            this.subcommand = subcommand;
+        }
+
+        @Override
+        public StackFrame createStackFrame(Namespace namespace, List<Value> args) throws Exception {
+            String subCmd = subcommand;
+            List<Value> subArgs = args;
+            if (subCmd == null) {
+                subCmd = args.getFirst().toString();
+                subArgs = args.stream().skip(1).toList();
+            }
+            Command sub = SUB_COMMANDS.get(subCmd);
+            return sub.createStackFrame(namespace, subArgs);
+        }
+
     }
 
     private static class ProjectExecute implements Command {
