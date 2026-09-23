@@ -21,12 +21,18 @@
  */
 package org.praxislive.project.tools;
 
+import java.text.MessageFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.ResourceBundle;
+import org.praxislive.core.OrderedMap;
 import org.praxislive.core.Value;
+import org.praxislive.core.types.PArray;
+import org.praxislive.core.types.PString;
 import org.praxislive.script.Command;
 import org.praxislive.script.CommandInstaller;
 import org.praxislive.script.Namespace;
+import org.praxislive.script.ScriptStackFrame;
 import org.praxislive.script.StackFrame;
 
 /**
@@ -34,13 +40,16 @@ import org.praxislive.script.StackFrame;
  */
 public final class ProjectCommands implements CommandInstaller {
 
+    private static final ResourceBundle MESSAGES
+            = ResourceBundle.getBundle(ProjectCommands.class.getPackageName() + ".Messages");
+
     private static final Map<String, Command> COMMANDS = Map.ofEntries(
             Map.entry("project", new Project()),
             Map.entry("project-build", new Project("build")),
             Map.entry("project-run", new Project("run"))
     );
 
-    private static final Map<String, Command> SUB_COMMANDS = Map.ofEntries(
+    private static final Map<String, Command> SUB_COMMANDS = OrderedMap.ofEntries(
             Map.entry("build", new ProjectExecute(false)),
             Map.entry("run", new ProjectExecute(true))
     );
@@ -48,6 +57,14 @@ public final class ProjectCommands implements CommandInstaller {
     @Override
     public void install(Map<String, Command> commands) {
         commands.putAll(COMMANDS);
+    }
+
+    static String message(String key) {
+        return MESSAGES.getString(key);
+    }
+
+    static String message(String key, Object... arguments) {
+        return MessageFormat.format(MESSAGES.getString(key), arguments);
     }
 
     private static class Project implements Command {
@@ -67,11 +84,44 @@ public final class ProjectCommands implements CommandInstaller {
             String subCmd = subcommand;
             List<Value> subArgs = args;
             if (subCmd == null) {
-                subCmd = args.getFirst().toString();
-                subArgs = args.stream().skip(1).toList();
+                if (args.isEmpty()) {
+                    return createCommandChooser(namespace);
+                } else {
+                    subCmd = args.getFirst().toString();
+                    subArgs = args.stream().skip(1).toList();
+                }
             }
             Command sub = SUB_COMMANDS.get(subCmd);
             return sub.createStackFrame(namespace, subArgs);
+        }
+
+        @Override
+        public String description() {
+            return message("project.description");
+        }
+
+        private StackFrame createCommandChooser(Namespace namespace) throws Exception {
+            List<PString> options = SUB_COMMANDS.keySet().stream()
+                    .map(PString::of)
+                    .toList();
+            return ScriptStackFrame.forScript(namespace, """
+                        user-input-select $message $options
+                        """)
+                    .createConstant("message", PString.of(message("project.choose")))
+                    .createConstant("options", PArray.of(options))
+                    .build()
+                    // catch error from select but not from subcommand
+                    .onError(err -> StackFrame.empty())
+                    .andThen(res -> {
+                        if (!res.isEmpty()) {
+                            try {
+                                return SUB_COMMANDS.get(res.getFirst().toString())
+                                        .createStackFrame(namespace, res);
+                            } catch (Exception ex) {
+                            }
+                        }
+                        return StackFrame.empty();
+                    });
         }
 
     }
