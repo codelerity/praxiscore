@@ -33,6 +33,7 @@ import org.jline.prompt.InputResult;
 import org.jline.prompt.ListBuilder;
 import org.jline.prompt.ListResult;
 import org.jline.prompt.PromptBuilder;
+import org.jline.prompt.PromptResult;
 import org.jline.prompt.Prompter;
 import org.jline.prompt.PrompterFactory;
 import org.jline.reader.EOFError;
@@ -44,6 +45,7 @@ import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
 import org.jline.utils.AttributedString;
 import org.jline.utils.AttributedStyle;
+import org.praxislive.core.ArgumentInfo;
 import org.praxislive.core.Call;
 import org.praxislive.core.Value;
 import org.praxislive.core.services.UserInputService;
@@ -219,16 +221,36 @@ class TerminalImpl {
     private Value promptUserInput(List<Value> args) throws Exception {
         String msg = args.get(0).toString();
         String content = args.size() > 1 ? args.get(1).toString() : "";
+        ArgumentInfo argInfo = args.size() > 2
+                ? ArgumentInfo.from(args.get(2))
+                        .orElseThrow(IllegalArgumentException::new)
+                : Value.info();
+        String mime = argInfo.attributes().getString(ArgumentInfo.KEY_MIME_TYPE, "");
         PromptBuilder builder = prompter.newBuilder();
-        builder.createInputPrompt()
-                .name("input")
-                .message(msg)
-                .defaultValue(content.isEmpty() ? null : content)
-                .addPrompt();
-        InputResult result = (InputResult) prompter
+        if (mime.isBlank()) {
+            builder.createInputPrompt()
+                    .name("input")
+                    .message(msg)
+                    .defaultValue(content.isEmpty() ? null : content)
+                    .addPrompt();
+        } else {
+            String ext = switch (mime) {
+                case "text/x-java", "text/x-praxis-java" -> "java";
+                default -> "";
+            };
+            builder.createEditorPrompt()
+                    .name("input")
+                    .message(msg)
+                    .title(msg)
+                    .initialText(content)
+                    .showLineNumbers(true)
+                    .fileExtension(ext)
+                    .addPrompt();
+        }
+        PromptResult<?> result = prompter
                 .prompt(List.of(), builder.build())
                 .get("input");
-        return PString.of(result.getInput());
+        return PString.of(result.getResult());
     }
 
     private PBoolean promptUserInputConfirm(List<Value> args) throws Exception {
